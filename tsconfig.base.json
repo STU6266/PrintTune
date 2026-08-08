@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "inlineSources": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "useUnknownInCatchVariables": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": false,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "types": ["vitest/globals"]
+  }
+}

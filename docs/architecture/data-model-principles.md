@@ -1,0 +1,29 @@
+# Data model principles
+
+Core domain model terminology (use consistently)
+
+- `Printer`: a logical representation of a physical printer.
+- `PrinterState`: an immutable snapshot of a printer at a point in time. Hardware changes create new
+  `PrinterState`s.
+- `ComponentInstallation`: an installed component (mainboard, hotend, probe) with metadata and
+  provenance.
+- `FieldClaim`: a single observed or imported claim about a printer field (value + source +
+  timestamp).
+- `ResolvedField`: the resolved value for a field derived from one or more `FieldClaim`s and
+  resolution rules.
+- `KnowledgePackage`: a declarative package of facts, rules, and help content.
+- `Evidence`: structured inputs used by diagnostics (logs, metadata, user answers, test
+  measurements).
+- `Recommendation`: a suggested manual action or mitigation with provenance.
+- `Workflow`: a guided multi-step procedure for users to follow.
+- `TestRun`: a recorded test or calibration run, tied to a `PrinterState` and KnowledgePackage
+  versions.
+- `DiagnosticResult`: deterministic or probabilistic findings produced by Core.
+
+Principles
+
+- Preserve history: never overwrite prior `PrinterState`s; append new states for hardware changes.
+- Claim-first: store raw `FieldClaim`s; compute `ResolvedField`s deterministically and
+  conservatively.
+- Traceability: all `Recommendation`s and `DiagnosticResult`s reference the evidence and package
+  versions used.

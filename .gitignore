@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+out/
+.vite/
+.turbo/
+.DS_Store
+/.pnp.*
+.env
+*.tsbuildinfo
+tsconfig.tsbuildinfo

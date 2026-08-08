@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+out
+.vite
+.git
+**/build
+**/dist
+packages/**/test/*.js
+packages/**/test/*.d.ts
+packages/**/test/*.map
+*.tsbuildinfo
+tsconfig.tsbuildinfo

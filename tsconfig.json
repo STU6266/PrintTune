@@ -1,0 +1,17 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./apps/desktop" },
+    { "path": "./packages/ai" },
+    { "path": "./packages/contracts" },
+    { "path": "./packages/conversation-engine" },
+    { "path": "./packages/core" },
+    { "path": "./packages/diagnostic-engine" },
+    { "path": "./packages/integrations" },
+    { "path": "./packages/knowledge-engine" },
+    { "path": "./packages/package-engine" },
+    { "path": "./packages/rule-engine" },
+    { "path": "./packages/storage" },
+    { "path": "./packages/test-fixtures" }
+  ]
+}
