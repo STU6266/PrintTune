@@ -6,7 +6,8 @@ Core domain model terminology (use consistently)
 - `PrinterState`: an immutable snapshot of a printer at a point in time. Hardware changes create new
   `PrinterState`s.
 - `ComponentInstallation`: an installed component (mainboard, hotend, probe) with metadata and
-  provenance.
+  provenance. Its identity model is defined in
+  [`component-identity-model.md`](component-identity-model.md).
 - `FieldClaim`: a single observed or imported claim about a printer field (value + source +
   timestamp).
 - `ResolvedField`: the resolved value for a field derived from one or more `FieldClaim`s and
@@ -23,6 +24,8 @@ Core domain model terminology (use consistently)
 Principles
 
 - Preserve history: never overwrite prior `PrinterState`s; append new states for hardware changes.
+- Create every persisted `Printer` atomically with exactly one initial `PrinterState`; normal
+  application creation must not persist a Printer by itself.
 - Claim-first: store raw `FieldClaim`s; compute `ResolvedField`s deterministically and
   conservatively.
 - Traceability: all `Recommendation`s and `DiagnosticResult`s reference the evidence and package
