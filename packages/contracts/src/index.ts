@@ -7,3 +7,4 @@ export {
   type FeatureFlags,
 } from "./feature-flags.js";
 export type { Workspace } from "./workspace.js";
+export type { Printer } from "./printer.js";
