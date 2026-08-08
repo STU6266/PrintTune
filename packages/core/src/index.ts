@@ -14,3 +14,10 @@ export {
   renamePrinter,
   type CreatePrinterInput,
 } from "./printer.js";
+export {
+  InvalidPrinterStateIdError,
+  InvalidPrinterStatePrinterIdError,
+  InvalidPrinterStateTimestampError,
+  createPrinterState,
+  type CreatePrinterStateInput,
+} from "./printer-state.js";

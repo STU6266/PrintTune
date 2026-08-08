@@ -7,11 +7,15 @@ import {
   runSqliteMigrations,
 } from "./sqlite-migrations.js";
 import { SqliteWorkspaceRepository } from "./sqlite-workspace-repository.js";
+import { SqlitePrinterRepository } from "./sqlite-printer-repository.js";
+import { SqlitePrinterStateRepository } from "./sqlite-printer-state-repository.js";
 
 export interface PrintTuneDatabase {
   migrate(): void;
   schemaVersion(): number;
   createWorkspaceRepository(): SqliteWorkspaceRepository;
+  createPrinterRepository(): SqlitePrinterRepository;
+  createPrinterStateRepository(): SqlitePrinterStateRepository;
   close(): void;
 }
 
@@ -32,6 +36,14 @@ class PrintTuneSqliteDatabase implements PrintTuneDatabase {
 
   createWorkspaceRepository(): SqliteWorkspaceRepository {
     return new SqliteWorkspaceRepository(this.#database);
+  }
+
+  createPrinterRepository(): SqlitePrinterRepository {
+    return new SqlitePrinterRepository(this.#database);
+  }
+
+  createPrinterStateRepository(): SqlitePrinterStateRepository {
+    return new SqlitePrinterStateRepository(this.#database);
   }
 
   close(): void {

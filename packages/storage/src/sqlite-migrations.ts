@@ -19,8 +19,36 @@ const migration001: SqliteMigration = {
   },
 };
 
+const migration002: SqliteMigration = {
+  version: 2,
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE printers (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+      ) STRICT;
+
+      CREATE INDEX printers_workspace_id_idx ON printers(workspace_id);
+
+      CREATE TABLE printer_states (
+        id TEXT PRIMARY KEY,
+        printer_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (printer_id) REFERENCES printers(id) ON DELETE CASCADE
+      ) STRICT;
+
+      CREATE INDEX printer_states_printer_id_idx ON printer_states(printer_id);
+    `);
+  },
+};
+
 export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   migration001,
+  migration002,
 ]);
 
 export function readSchemaVersion(database: DatabaseSync): number {

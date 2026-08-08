@@ -8,3 +8,4 @@ export {
 } from "./feature-flags.js";
 export type { Workspace } from "./workspace.js";
 export type { Printer } from "./printer.js";
+export type { PrinterState } from "./printer-state.js";
