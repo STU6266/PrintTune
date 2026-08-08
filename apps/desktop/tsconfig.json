@@ -10,5 +10,9 @@
     "types": ["node", "electron", "vite/client", "vitest/globals"]
   },
   "include": ["src", "test", "forge.config.ts", "vite.*.config.mts"],
-  "references": [{ "path": "../../packages/contracts" }]
+  "references": [
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/core" },
+    { "path": "../../packages/storage" }
+  ]
 }

@@ -144,3 +144,120 @@ nav {
   font-size: 1rem;
   line-height: 1.65;
 }
+
+.workspace-development {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #d8ddd8;
+}
+
+.workspace-development h2 {
+  margin: 0.15rem 0 0;
+  font-size: 1.25rem;
+}
+
+.workspace-development .development-label {
+  color: #356b4e;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.workspace-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  color: #35423a;
+  list-style: none;
+}
+
+.workspace-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #d8ddd8;
+  border-radius: 0.5rem;
+  background: #fbfcfa;
+}
+
+.workspace-list .workspace-list-item-active {
+  border-color: #8eb29a;
+  background: #e2eee6;
+}
+
+.workspace-list button {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #9caaa0;
+  border-radius: 0.4rem;
+  color: #244b37;
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.workspace-list button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.workspace-development .active-workspace-status {
+  color: #244b37;
+  font-weight: 700;
+}
+
+.workspace-form {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 36rem;
+  margin-top: 0.4rem;
+}
+
+.workspace-form label {
+  color: #35423a;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.workspace-form > div {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.workspace-form input {
+  min-width: 0;
+  flex: 1;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #b9c2bc;
+  border-radius: 0.5rem;
+  color: #1c2620;
+  background: #ffffff;
+  font: inherit;
+}
+
+.workspace-form button {
+  padding: 0.65rem 0.9rem;
+  border: 0;
+  border-radius: 0.5rem;
+  color: #ffffff;
+  background: #356b4e;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.workspace-form button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.workspace-development .form-error {
+  color: #9b2c2c;
+  font-size: 0.85rem;
+}

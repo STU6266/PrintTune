@@ -9,6 +9,7 @@
     "@printtune/contracts": "workspace:*"
   },
   "devDependencies": {
-    "@printtune/core": "workspace:*"
+    "@printtune/core": "workspace:*",
+    "@types/node": "^24.13.3"
   }
 }

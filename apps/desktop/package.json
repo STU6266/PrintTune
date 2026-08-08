@@ -9,11 +9,14 @@
     "dev": "electron-forge start",
     "start": "electron-forge start",
     "build": "electron-forge package",
+    "smoke:node-sqlite:dev": "electron-forge start -- --node-sqlite-smoke",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config ../../vitest.config.mts"
   },
   "dependencies": {
     "@printtune/contracts": "workspace:*",
+    "@printtune/core": "workspace:*",
+    "@printtune/storage": "workspace:*",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2"
@@ -21,7 +24,7 @@
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/plugin-vite": "^7.11.2",
-    "@types/node": "^26.2.0",
+    "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",

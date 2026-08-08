@@ -34,6 +34,12 @@ importers:
       "@printtune/contracts":
         specifier: workspace:*
         version: link:../../packages/contracts
+      "@printtune/core":
+        specifier: workspace:*
+        version: link:../../packages/core
+      "@printtune/storage":
+        specifier: workspace:*
+        version: link:../../packages/storage
       react:
         specifier: ^19.2.8
         version: 19.2.8
@@ -51,8 +57,8 @@ importers:
         specifier: ^7.11.2
         version: 7.11.2(supports-color@8.1.1)
       "@types/node":
-        specifier: ^26.2.0
-        version: 26.2.0
+        specifier: ^24.13.3
+        version: 24.13.3
       "@types/react":
         specifier: ^19.2.18
         version: 19.2.18
@@ -61,13 +67,13 @@ importers:
         version: 19.2.4(@types/react@19.2.18)
       "@vitejs/plugin-react":
         specifier: ^6.0.5
-        version: 6.0.5(vite@8.2.1(@types/node@26.2.0)(jiti@2.7.0)(terser@5.49.2))
+        version: 6.0.5(vite@8.2.1(@types/node@24.13.3)(jiti@2.7.0)(terser@5.49.2))
       electron:
         specifier: ^43.3.0
         version: 43.3.0(supports-color@8.1.1)
       vite:
         specifier: ^8.2.1
-        version: 8.2.1(@types/node@26.2.0)(jiti@2.7.0)(terser@5.49.2)
+        version: 8.2.1(@types/node@24.13.3)(jiti@2.7.0)(terser@5.49.2)
 
   packages/ai: {}
 
@@ -100,6 +106,9 @@ importers:
       "@printtune/core":
         specifier: workspace:*
         version: link:../core
+      "@types/node":
+        specifier: ^24.13.3
+        version: 24.13.3
 
   packages/test-fixtures: {}
 
@@ -772,12 +781,6 @@ packages:
     resolution:
       {
         integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==,
-      }
-
-  "@types/node@26.1.2":
-    resolution:
-      {
-        integrity: sha512-Vu4a5UFA9rIIFJ7rB/Vaafh9lrCQszopTCx6KjFboXTGQbPNasehVR5TEiithSDGyd1DEiUByggTZsg8jukeIg==,
       }
 
   "@types/node@26.2.0":
@@ -4455,7 +4458,7 @@ snapshots:
     dependencies:
       "@types/http-cache-semantics": 4.2.0
       "@types/keyv": 3.1.4
-      "@types/node": 26.1.2
+      "@types/node": 24.13.3
       "@types/responselike": 1.0.3
 
   "@types/chai@5.2.3":
@@ -4475,11 +4478,11 @@ snapshots:
 
   "@types/keyv@3.1.4":
     dependencies:
-      "@types/node": 26.1.2
+      "@types/node": 24.13.3
 
   "@types/mute-stream@0.0.4":
     dependencies:
-      "@types/node": 22.20.1
+      "@types/node": 24.13.3
 
   "@types/node@22.20.1":
     dependencies:
@@ -4489,13 +4492,10 @@ snapshots:
     dependencies:
       undici-types: 7.18.2
 
-  "@types/node@26.1.2":
-    dependencies:
-      undici-types: 8.3.0
-
   "@types/node@26.2.0":
     dependencies:
       undici-types: 8.3.0
+    optional: true
 
   "@types/react-dom@19.2.4(@types/react@19.2.18)":
     dependencies:
@@ -4507,13 +4507,13 @@ snapshots:
 
   "@types/responselike@1.0.3":
     dependencies:
-      "@types/node": 26.1.2
+      "@types/node": 24.13.3
 
   "@types/wrap-ansi@3.0.0": {}
 
   "@types/yauzl@2.10.3":
     dependencies:
-      "@types/node": 26.1.2
+      "@types/node": 24.13.3
     optional: true
 
   "@typescript-eslint/eslint-plugin@8.66.0(@typescript-eslint/parser@8.66.0(eslint@10.8.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@7.2.0)(typescript@5.9.3))(eslint@10.8.1(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)":
@@ -4631,10 +4631,10 @@ snapshots:
       "@typescript-eslint/types": 8.66.0
       eslint-visitor-keys: 5.0.1
 
-  "@vitejs/plugin-react@6.0.5(vite@8.2.1(@types/node@26.2.0)(jiti@2.7.0)(terser@5.49.2))":
+  "@vitejs/plugin-react@6.0.5(vite@8.2.1(@types/node@24.13.3)(jiti@2.7.0)(terser@5.49.2))":
     dependencies:
       "@rolldown/pluginutils": 1.0.1
-      vite: 8.2.1(@types/node@26.2.0)(jiti@2.7.0)(terser@5.49.2)
+      vite: 8.2.1(@types/node@24.13.3)(jiti@2.7.0)(terser@5.49.2)
 
   "@vitest/expect@4.1.10":
     dependencies:
@@ -5407,7 +5407,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      "@types/node": 26.1.2
+      "@types/node": 24.13.3
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -6084,7 +6084,8 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici-types@8.3.0: {}
+  undici-types@8.3.0:
+    optional: true
 
   undici@6.28.0: {}
 
@@ -6114,6 +6115,19 @@ snapshots:
     dependencies:
       spdx-correct: 3.2.0
       spdx-expression-parse: 3.0.1
+
+  vite@8.2.1(@types/node@24.13.3)(jiti@2.7.0)(terser@5.49.2):
+    dependencies:
+      lightningcss: 1.33.0
+      picomatch: 4.0.5
+      postcss: 8.5.26
+      rolldown: 1.2.3
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      "@types/node": 24.13.3
+      fsevents: 2.3.3
+      jiti: 2.7.0
+      terser: 5.49.2
 
   vite@8.2.1(@types/node@26.2.0)(jiti@2.7.0)(terser@5.49.2):
     dependencies:

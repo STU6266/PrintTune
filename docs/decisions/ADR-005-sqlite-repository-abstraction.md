@@ -10,6 +10,10 @@ Decision
 
 - Use SQLite (FTS5) as the reference storage in Alpha, with a repository abstraction layer (e.g.,
   Drizzle ORM) so Core is storage-agnostic.
+- The Alpha implementation uses the built-in `node:sqlite` driver in the local Electron main-process
+  backend. It does not use `better-sqlite3` or Drizzle at this stage. This decision is based on the
+  Electron 43 compatibility results recorded in
+  [`node-sqlite-electron.md`](../architecture/spikes/node-sqlite-electron.md).
 
 Positive consequences
 
