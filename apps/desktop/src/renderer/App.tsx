@@ -1,35 +1,23 @@
-import { useEffect, useState } from "react";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 
-import type { AppInfo } from "../shared/app-info";
+import { AppShell } from "./AppShell";
+import { APP_ROUTES, DEFAULT_ROUTE, UNKNOWN_ROUTE_REDIRECT } from "./routes";
 
 export function App() {
-  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
-
-  useEffect(() => {
-    void window.printTune.getAppInfo().then(setAppInfo);
-  }, []);
-
   return (
-    <main>
-      <section aria-labelledby="app-title">
-        <p className="eyebrow">PrintTune</p>
-        <h1 id="app-title">PrintTune Alpha</h1>
-        <ul>
-          <li>Desktop-Anwendung läuft</li>
-          <li>Renderer isoliert</li>
-          <li>Internet-Recherche in der Alpha deaktiviert</li>
-        </ul>
-        <dl aria-live="polite">
-          <div>
-            <dt>Anwendung</dt>
-            <dd>{appInfo?.name ?? "Wird geladen …"}</dd>
-          </div>
-          <div>
-            <dt>Version</dt>
-            <dd>{appInfo?.version ?? "Wird geladen …"}</dd>
-          </div>
-        </dl>
-      </section>
-    </main>
+    <HashRouter>
+      <Routes>
+        <Route element={<AppShell />}>
+          {APP_ROUTES.map(({ path, Component }) =>
+            path === DEFAULT_ROUTE ? (
+              <Route key={path} index element={<Component />} />
+            ) : (
+              <Route key={path} path={path.slice(1)} element={<Component />} />
+            )
+          )}
+          <Route path="*" element={<Navigate to={UNKNOWN_ROUTE_REDIRECT} replace />} />
+        </Route>
+      </Routes>
+    </HashRouter>
   );
 }
