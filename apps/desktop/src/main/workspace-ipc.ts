@@ -2,10 +2,14 @@ import type { IpcMain, WebContents } from "electron";
 
 import {
   WORKSPACE_CREATE_CHANNEL,
+  WORKSPACE_DELETE_CHANNEL,
   WORKSPACE_GET_ACTIVE_CHANNEL,
   WORKSPACE_LIST_CHANNEL,
+  WORKSPACE_RENAME_CHANNEL,
   WORKSPACE_SET_ACTIVE_CHANNEL,
   assertCreateWorkspaceRequest,
+  assertDeleteWorkspaceRequest,
+  assertRenameWorkspaceRequest,
   assertSetActiveWorkspaceRequest,
 } from "../shared/workspace-api";
 import type { ActiveWorkspaceSession } from "./active-workspace-session";
@@ -37,5 +41,18 @@ export function registerWorkspaceIpcHandlers(
     assertTrustedRendererSender(event, getTrustedRenderer());
     const request = assertSetActiveWorkspaceRequest(payload);
     return activeWorkspaceSession.setActiveWorkspace(request.id);
+  });
+
+  ipc.handle(WORKSPACE_RENAME_CHANNEL, async (event, payload: unknown) => {
+    assertTrustedRendererSender(event, getTrustedRenderer());
+    return service.renameWorkspace(assertRenameWorkspaceRequest(payload));
+  });
+
+  ipc.handle(WORKSPACE_DELETE_CHANNEL, async (event, payload: unknown) => {
+    assertTrustedRendererSender(event, getTrustedRenderer());
+    const request = assertDeleteWorkspaceRequest(payload);
+    const deleted = await service.deleteWorkspace(request);
+    activeWorkspaceSession.clearIfActive(request.id);
+    return deleted;
   });
 }

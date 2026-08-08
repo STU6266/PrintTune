@@ -29,4 +29,11 @@ describe("Workspace renderer selection", () => {
     expect(isWorkspaceActive(second, first)).toBe(false);
     expect(isWorkspaceActive(second, second)).toBe(true);
   });
+
+  it("keeps a renamed Workspace active by ID and clears deleted active state", () => {
+    const renamed = { ...first, name: "Werkstatt Alpha" };
+
+    expect(isWorkspaceActive(renamed, renamed)).toBe(true);
+    expect(isWorkspaceActive(undefined, renamed)).toBe(false);
+  });
 });

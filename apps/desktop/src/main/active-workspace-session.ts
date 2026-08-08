@@ -1,13 +1,7 @@
 import type { Workspace } from "@printtune/contracts";
 import type { WorkspaceRepository } from "@printtune/storage";
 
-export class WorkspaceNotFoundError extends Error {
-  override readonly name = "WorkspaceNotFoundError";
-
-  constructor(readonly workspaceId: string) {
-    super(`Workspace not found: ${workspaceId}`);
-  }
-}
+import { WorkspaceNotFoundError } from "./workspace-errors";
 
 export class ActiveWorkspaceSession {
   readonly #repository: WorkspaceRepository;
@@ -38,5 +32,11 @@ export class ActiveWorkspaceSession {
 
     this.#activeWorkspaceId = workspace.id;
     return workspace;
+  }
+
+  clearIfActive(id: string): void {
+    if (this.#activeWorkspaceId === id) {
+      this.#activeWorkspaceId = undefined;
+    }
   }
 }

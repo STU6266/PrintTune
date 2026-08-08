@@ -4,6 +4,8 @@ export const WORKSPACE_LIST_CHANNEL = "workspace:list" as const;
 export const WORKSPACE_CREATE_CHANNEL = "workspace:create" as const;
 export const WORKSPACE_GET_ACTIVE_CHANNEL = "workspace:active:get" as const;
 export const WORKSPACE_SET_ACTIVE_CHANNEL = "workspace:active:set" as const;
+export const WORKSPACE_RENAME_CHANNEL = "workspace:rename" as const;
+export const WORKSPACE_DELETE_CHANNEL = "workspace:delete" as const;
 
 export interface CreateWorkspaceRequest {
   readonly name: string;
@@ -13,18 +15,31 @@ export interface SetActiveWorkspaceRequest {
   readonly id: string;
 }
 
+export interface RenameWorkspaceRequest {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface DeleteWorkspaceRequest {
+  readonly id: string;
+}
+
 export interface WorkspaceApi {
   listWorkspaces(): Promise<readonly Workspace[]>;
   createWorkspace(input: CreateWorkspaceRequest): Promise<Workspace>;
   getActiveWorkspace(): Promise<Workspace | undefined>;
   setActiveWorkspace(id: string): Promise<Workspace>;
+  renameWorkspace(id: string, name: string): Promise<Workspace>;
+  deleteWorkspace(id: string): Promise<boolean>;
 }
 
 type WorkspaceChannel =
   | typeof WORKSPACE_LIST_CHANNEL
   | typeof WORKSPACE_CREATE_CHANNEL
   | typeof WORKSPACE_GET_ACTIVE_CHANNEL
-  | typeof WORKSPACE_SET_ACTIVE_CHANNEL;
+  | typeof WORKSPACE_SET_ACTIVE_CHANNEL
+  | typeof WORKSPACE_RENAME_CHANNEL
+  | typeof WORKSPACE_DELETE_CHANNEL;
 type WorkspaceInvoke = (channel: WorkspaceChannel, payload?: unknown) => Promise<unknown>;
 
 const ISO_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
@@ -88,6 +103,33 @@ export function assertSetActiveWorkspaceRequest(value: unknown): SetActiveWorksp
   return Object.freeze({ id: value.id });
 }
 
+function hasValidWorkspaceId(
+  value: Record<string, unknown>
+): value is Record<string, unknown> & { id: string } {
+  return typeof value.id === "string" && value.id.length > 0 && value.id.trim() === value.id;
+}
+
+export function assertRenameWorkspaceRequest(value: unknown): RenameWorkspaceRequest {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 2 ||
+    !hasValidWorkspaceId(value) ||
+    typeof value.name !== "string"
+  ) {
+    throw new TypeError("Invalid Workspace rename request");
+  }
+
+  return Object.freeze({ id: value.id, name: value.name });
+}
+
+export function assertDeleteWorkspaceRequest(value: unknown): DeleteWorkspaceRequest {
+  if (!isRecord(value) || Object.keys(value).length !== 1 || !hasValidWorkspaceId(value)) {
+    throw new TypeError("Invalid Workspace delete request");
+  }
+
+  return Object.freeze({ id: value.id });
+}
+
 export function assertWorkspace(value: unknown): Workspace {
   if (!isWorkspace(value)) {
     throw new TypeError("Invalid Workspace response");
@@ -123,6 +165,19 @@ export function createWorkspaceApi(invoke: WorkspaceInvoke): WorkspaceApi {
     async setActiveWorkspace(id: string) {
       const request = assertSetActiveWorkspaceRequest({ id });
       return assertWorkspace(await invoke(WORKSPACE_SET_ACTIVE_CHANNEL, request));
+    },
+    async renameWorkspace(id: string, name: string) {
+      const request = assertRenameWorkspaceRequest({ id, name });
+      return assertWorkspace(await invoke(WORKSPACE_RENAME_CHANNEL, request));
+    },
+    async deleteWorkspace(id: string) {
+      const request = assertDeleteWorkspaceRequest({ id });
+      const result = await invoke(WORKSPACE_DELETE_CHANNEL, request);
+      if (typeof result !== "boolean") {
+        throw new TypeError("Invalid Workspace delete response");
+      }
+
+      return result;
     },
   });
 }

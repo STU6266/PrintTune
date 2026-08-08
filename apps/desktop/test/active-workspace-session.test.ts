@@ -2,10 +2,8 @@ import { createWorkspace, renameWorkspace } from "@printtune/core";
 import { InMemoryWorkspaceRepository } from "@printtune/storage";
 import { describe, expect, it } from "vitest";
 
-import {
-  ActiveWorkspaceSession,
-  WorkspaceNotFoundError,
-} from "../src/main/active-workspace-session";
+import { ActiveWorkspaceSession } from "../src/main/active-workspace-session";
+import { WorkspaceNotFoundError } from "../src/main/workspace-errors";
 
 const FIRST_TIMESTAMP = "2026-08-08T12:00:00.000Z";
 const SECOND_TIMESTAMP = "2026-08-08T13:00:00.000Z";
@@ -69,5 +67,33 @@ describe("ActiveWorkspaceSession", () => {
     await session.setActiveWorkspace(second.id);
 
     await expect(session.getActiveWorkspace()).resolves.toEqual(second);
+  });
+
+  it("clears the active Workspace when that Workspace is deleted", async () => {
+    const repository = new InMemoryWorkspaceRepository();
+    const existing = workspace("workspace-a", "Werkstatt A");
+    await repository.save(existing);
+    const session = new ActiveWorkspaceSession(repository);
+    await session.setActiveWorkspace(existing.id);
+
+    await repository.delete(existing.id);
+    session.clearIfActive(existing.id);
+
+    await expect(session.getActiveWorkspace()).resolves.toBeUndefined();
+  });
+
+  it("keeps the active Workspace when another Workspace is deleted", async () => {
+    const repository = new InMemoryWorkspaceRepository();
+    const first = workspace("workspace-a", "Werkstatt A");
+    const second = workspace("workspace-b", "Werkstatt B");
+    await repository.save(first);
+    await repository.save(second);
+    const session = new ActiveWorkspaceSession(repository);
+    await session.setActiveWorkspace(first.id);
+
+    await repository.delete(second.id);
+    session.clearIfActive(second.id);
+
+    await expect(session.getActiveWorkspace()).resolves.toEqual(first);
   });
 });

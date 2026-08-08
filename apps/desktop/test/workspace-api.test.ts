@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   WORKSPACE_CREATE_CHANNEL,
+  WORKSPACE_DELETE_CHANNEL,
   WORKSPACE_GET_ACTIVE_CHANNEL,
   WORKSPACE_LIST_CHANNEL,
+  WORKSPACE_RENAME_CHANNEL,
   WORKSPACE_SET_ACTIVE_CHANNEL,
   createWorkspaceApi,
 } from "../src/shared/workspace-api";
@@ -115,5 +117,46 @@ describe("Workspace preload API", () => {
     const api = createWorkspaceApi(async () => ({ ...WORKSPACE, updatedAt: null }));
 
     await expect(api.setActiveWorkspace(WORKSPACE.id)).rejects.toThrow(TypeError);
+  });
+
+  it("validates rename input and result on the fixed channel", async () => {
+    const renamed = { ...WORKSPACE, name: "Neu" };
+    const invoke = vi.fn().mockResolvedValue(renamed);
+    const api = createWorkspaceApi(invoke);
+
+    await expect(api.renameWorkspace(WORKSPACE.id, "Neu")).resolves.toEqual(renamed);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(
+      WORKSPACE_RENAME_CHANNEL,
+      Object.freeze({ id: WORKSPACE.id, name: "Neu" })
+    );
+  });
+
+  it("rejects malformed rename input and output", async () => {
+    const invoke = vi.fn().mockResolvedValue({ ...WORKSPACE, name: "" });
+    const api = createWorkspaceApi(invoke);
+
+    await expect(api.renameWorkspace(" ", "Neu")).rejects.toThrow(TypeError);
+    expect(invoke).not.toHaveBeenCalled();
+    await expect(api.renameWorkspace(WORKSPACE.id, "Neu")).rejects.toThrow(TypeError);
+  });
+
+  it.each([true, false])("validates the delete boolean result %j", async (result) => {
+    const invoke = vi.fn().mockResolvedValue(result);
+    const api = createWorkspaceApi(invoke);
+
+    await expect(api.deleteWorkspace(WORKSPACE.id)).resolves.toBe(result);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(
+      WORKSPACE_DELETE_CHANNEL,
+      Object.freeze({ id: WORKSPACE.id })
+    );
+  });
+
+  it("rejects malformed delete input and output", async () => {
+    const invoke = vi.fn().mockResolvedValue("true");
+    const api = createWorkspaceApi(invoke);
+
+    await expect(api.deleteWorkspace(" ")).rejects.toThrow(TypeError);
+    expect(invoke).not.toHaveBeenCalled();
+    await expect(api.deleteWorkspace(WORKSPACE.id)).rejects.toThrow(TypeError);
   });
 });

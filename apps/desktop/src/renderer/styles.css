@@ -208,6 +208,47 @@ nav {
   opacity: 0.65;
 }
 
+.workspace-actions,
+.workspace-delete-confirmation,
+.workspace-rename-form {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.workspace-delete-confirmation {
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.workspace-delete-confirmation span {
+  margin-right: auto;
+  font-weight: 700;
+}
+
+.workspace-list .danger-button {
+  border-color: #bd7777;
+  color: #8b2525;
+}
+
+.workspace-rename-form {
+  width: 100%;
+}
+
+.workspace-rename-form label {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.workspace-rename-form input {
+  min-width: 8rem;
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #9caaa0;
+  border-radius: 0.4rem;
+  font: inherit;
+}
+
 .workspace-development .active-workspace-status {
   color: #244b37;
   font-weight: 700;
