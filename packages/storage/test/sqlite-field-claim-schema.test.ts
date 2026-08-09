@@ -6,6 +6,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
 import { openConfiguredSqliteDatabase } from "../src/sqlite-connection";
+import { SqliteFieldClaimRepository } from "../src/sqlite-field-claim-repository";
 import {
   PRINTTUNE_SQLITE_MIGRATIONS,
   readSchemaVersion,
@@ -149,7 +150,7 @@ describe("SQLite FieldClaim schema", () => {
   it("creates the exact STRICT FieldClaim table in the current schema", () => {
     const database = openMigratedDatabase();
     try {
-      expect(readSchemaVersion(database)).toBe(5);
+      expect(readSchemaVersion(database)).toBe(6);
       expect(database.prepare("PRAGMA table_info(field_claims)").all()).toEqual([
         expect.objectContaining({ name: "id", type: "TEXT", notnull: 1, pk: 1 }),
         expect.objectContaining({ name: "printer_state_id", type: "TEXT", notnull: 0, pk: 0 }),
@@ -183,6 +184,7 @@ describe("SQLite FieldClaim schema", () => {
         expect.objectContaining({ name: "trust", type: "TEXT", notnull: 1, pk: 0 }),
         expect.objectContaining({ name: "confidence", type: "REAL", notnull: 0, pk: 0 }),
         expect.objectContaining({ name: "created_at", type: "TEXT", notnull: 1, pk: 0 }),
+        expect.objectContaining({ name: "source_fact_id", type: "TEXT", notnull: 0, pk: 0 }),
       ]);
       expect(database.prepare("PRAGMA table_list").all()).toEqual(
         expect.arrayContaining([expect.objectContaining({ name: "field_claims", strict: 1 })])
@@ -216,6 +218,186 @@ describe("SQLite FieldClaim schema", () => {
       expect(database.prepare("SELECT id FROM component_installations").all()).toEqual([
         { id: "installation-a" },
       ]);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("migrates a historical version-5 package Claim without fabricating fact provenance", async () => {
+    const database = openConfiguredSqliteDatabase(":memory:");
+    try {
+      runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS.slice(0, 5));
+      seedHierarchy(database);
+      insertClaim(database, {
+        id: "historical-package-claim",
+        sourceType: "knowledge_package",
+        sourcePackageId: "package-a",
+        sourcePackageVersion: "opaque-v1",
+        trust: "developer_verified",
+      });
+      database
+        .prepare(
+          `INSERT INTO printer_knowledge_identities (
+            id, printer_id, kind, selected_at, definition_package_id,
+            definition_package_version, series_definition_id,
+            manufacturer_display_name, series_display_name
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          "identity-a",
+          "printer-a",
+          "known",
+          TIMESTAMP,
+          "package-a",
+          "opaque-v1",
+          "series-a",
+          "Synthetic",
+          "Series"
+        );
+      database
+        .prepare(
+          "INSERT INTO printer_knowledge_identity_selections (printer_id, identity_id) VALUES (?, ?)"
+        )
+        .run("printer-a", "identity-a");
+
+      runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS);
+
+      expect(readSchemaVersion(database)).toBe(6);
+      expect(
+        database
+          .prepare(
+            "SELECT number_value, unit, source_package_id, source_package_version, source_fact_id FROM field_claims WHERE id = ?"
+          )
+          .get("historical-package-claim")
+      ).toEqual({
+        number_value: 0.4,
+        unit: "mm",
+        source_package_id: "package-a",
+        source_package_version: "opaque-v1",
+        source_fact_id: null,
+      });
+      const reconstructed = await new SqliteFieldClaimRepository(database).findById(
+        "historical-package-claim"
+      );
+      expect(reconstructed?.provenance).toEqual({
+        sourceType: "knowledge_package",
+        sourceRef: {
+          type: "knowledge_package",
+          packageId: "package-a",
+          packageVersion: "opaque-v1",
+        },
+      });
+      expect(reconstructed?.provenance.sourceRef).not.toHaveProperty("factId");
+      for (const [table, id] of [
+        ["workspaces", "workspace-a"],
+        ["printers", "printer-a"],
+        ["printer_states", "state-a"],
+        ["component_installations", "installation-a"],
+        ["printer_knowledge_identities", "identity-a"],
+      ] as const) {
+        expect(database.prepare(`SELECT id FROM ${table}`).get()).toEqual({ id });
+      }
+      expect(database.prepare("SELECT * FROM printer_knowledge_identity_selections").get()).toEqual(
+        { printer_id: "printer-a", identity_id: "identity-a" }
+      );
+    } finally {
+      database.close();
+    }
+  });
+
+  it("constrains source_fact_id to normalized knowledge-package provenance", () => {
+    const database = openMigratedDatabase();
+    try {
+      seedHierarchy(database);
+      insertClaim(database, { id: "user-claim" });
+      insertClaim(database, {
+        id: "package-claim",
+        sourceType: "knowledge_package",
+        sourcePackageId: "package-a",
+        sourcePackageVersion: "1",
+        trust: "developer_verified",
+      });
+
+      const incompatibleSources: readonly Partial<ClaimRow>[] = [
+        { id: "user-entered", sourceType: "user_entered", trust: "user_entered" },
+        {
+          id: "imported",
+          sourceType: "imported_file",
+          sourceReferenceId: "import-a",
+          trust: "imported_observation",
+        },
+        {
+          id: "slicer",
+          sourceType: "slicer_profile",
+          sourceReferenceId: "slicer-a",
+          trust: "imported_observation",
+        },
+        {
+          id: "firmware",
+          sourceType: "firmware_read",
+          sourceReferenceId: "firmware-a",
+          trust: "imported_observation",
+        },
+        {
+          id: "test-result",
+          sourceType: "test_result",
+          sourceReferenceId: "test-a",
+          trust: "imported_observation",
+        },
+        {
+          id: "ai",
+          sourceType: "ai_unverified",
+          trust: "ai_generated_unverified",
+        },
+      ];
+      for (const source of incompatibleSources) insertClaim(database, source);
+      insertClaim(database, {
+        id: "definition-claim",
+        sourceType: "component_definition",
+        sourcePackageId: "package-a",
+        sourcePackageVersion: "1",
+        sourceDefinitionId: "definition-a",
+        trust: "developer_verified",
+      });
+
+      expect(() =>
+        database
+          .prepare("UPDATE field_claims SET source_fact_id = ? WHERE id = ?")
+          .run("fact-a", "user-claim")
+      ).toThrow();
+      for (const { id } of incompatibleSources) {
+        expect(() =>
+          database
+            .prepare("UPDATE field_claims SET source_fact_id = ? WHERE id = ?")
+            .run("fact-a", id as string)
+        ).toThrow();
+      }
+      expect(() =>
+        database
+          .prepare("UPDATE field_claims SET source_fact_id = ? WHERE id = ?")
+          .run("fact-a", "definition-claim")
+      ).toThrow();
+      for (const invalid of ["", " ", " fact-a", "fact-a "]) {
+        expect(() =>
+          database
+            .prepare("UPDATE field_claims SET source_fact_id = ? WHERE id = ?")
+            .run(invalid, "package-claim")
+        ).toThrow();
+      }
+      expect(() =>
+        database
+          .prepare("UPDATE field_claims SET source_fact_id = ? WHERE id = ?")
+          .run(new Uint8Array([1]), "package-claim")
+      ).toThrow();
+
+      database
+        .prepare("UPDATE field_claims SET source_fact_id = ? WHERE id = ?")
+        .run("fact-a", "package-claim");
+      expect(
+        database
+          .prepare("SELECT source_fact_id FROM field_claims WHERE id = ?")
+          .get("package-claim")
+      ).toEqual({ source_fact_id: "fact-a" });
     } finally {
       database.close();
     }
@@ -524,7 +706,7 @@ describe("SQLite FieldClaim schema", () => {
       try {
         runSqliteMigrations(second, PRINTTUNE_SQLITE_MIGRATIONS);
         runSqliteMigrations(second, PRINTTUNE_SQLITE_MIGRATIONS);
-        expect(readSchemaVersion(second)).toBe(5);
+        expect(readSchemaVersion(second)).toBe(6);
         expect(second.prepare("SELECT id FROM field_claims").all()).toEqual([{ id: "claim-a" }]);
       } finally {
         second.close();

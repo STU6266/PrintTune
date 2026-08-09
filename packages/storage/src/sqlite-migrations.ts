@@ -273,12 +273,31 @@ const migration005: SqliteMigration = {
   },
 };
 
+const migration006: SqliteMigration = {
+  version: 6,
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE field_claims ADD COLUMN source_fact_id TEXT
+        CHECK (
+          source_fact_id IS NULL
+          OR
+          (
+            source_type = 'knowledge_package'
+            AND length(source_fact_id) > 0
+            AND trim(source_fact_id) = source_fact_id
+          )
+        )
+    `);
+  },
+};
+
 export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   migration001,
   migration002,
   migration003,
   migration004,
   migration005,
+  migration006,
 ]);
 
 export function readSchemaVersion(database: DatabaseSync): number {

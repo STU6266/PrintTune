@@ -38,7 +38,7 @@ const SELECT_COLUMNS = `
   id, printer_state_id, component_installation_id, field_path,
   value_type, string_value, number_value, boolean_value, unit,
   source_type, source_reference_id, source_package_id, source_package_version,
-  source_definition_id, trust, confidence, created_at
+  source_definition_id, source_fact_id, trust, confidence, created_at
 `;
 
 function asRow(value: unknown): Record<string, unknown> {
@@ -128,10 +128,12 @@ function parseProvenance(row: Record<string, unknown>): ClaimProvenance {
   const packageId = readNullableString(row, "source_package_id");
   const packageVersion = readNullableString(row, "source_package_version");
   const definitionId = readNullableString(row, "source_definition_id");
+  const factId = readNullableString(row, "source_fact_id");
   const noPackageFields = (): void => {
     requireNull(packageId, "source_package_id");
     requireNull(packageVersion, "source_package_version");
     requireNull(definitionId, "source_definition_id");
+    requireNull(factId, "source_fact_id");
   };
   const idReference = (
     type: "import_snapshot" | "slicer_profile_snapshot" | "firmware_snapshot" | "test_run"
@@ -166,10 +168,16 @@ function parseProvenance(row: Record<string, unknown>): ClaimProvenance {
       }
       return {
         sourceType,
-        sourceRef: { type: "knowledge_package", packageId, packageVersion },
+        sourceRef: {
+          type: "knowledge_package",
+          packageId,
+          packageVersion,
+          ...(factId === null ? {} : { factId }),
+        },
       };
     case "component_definition":
       requireNull(referenceId, "source_reference_id");
+      requireNull(factId, "source_fact_id");
       if (packageId === null || packageVersion === null || definitionId === null) {
         throw new FieldClaimDataIntegrityError(
           "provenance",
@@ -238,19 +246,19 @@ function valueColumns(
 
 function provenanceColumns(
   provenance: ClaimProvenance
-): readonly [string | null, string | null, string | null, string | null] {
+): readonly [string | null, string | null, string | null, string | null, string | null] {
   const reference = provenance.sourceRef;
-  if (!reference) return [null, null, null, null];
+  if (!reference) return [null, null, null, null, null];
   switch (reference.type) {
     case "import_snapshot":
     case "slicer_profile_snapshot":
     case "firmware_snapshot":
     case "test_run":
-      return [reference.id, null, null, null];
+      return [reference.id, null, null, null, null];
     case "knowledge_package":
-      return [null, reference.packageId, reference.packageVersion, null];
+      return [null, reference.packageId, reference.packageVersion, null, reference.factId ?? null];
     case "component_definition":
-      return [null, reference.packageId, reference.packageVersion, reference.definitionId];
+      return [null, reference.packageId, reference.packageVersion, reference.definitionId, null];
   }
 }
 
@@ -268,8 +276,8 @@ export class SqliteFieldClaimRepository implements FieldClaimRepository {
         id, printer_state_id, component_installation_id, field_path,
         value_type, string_value, number_value, boolean_value, unit,
         source_type, source_reference_id, source_package_id, source_package_version,
-        source_definition_id, trust, confidence, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        source_definition_id, source_fact_id, trust, confidence, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     this.#find = database.prepare(`SELECT ${SELECT_COLUMNS} FROM field_claims WHERE id = ?`);
     this.#listByState = database.prepare(`
@@ -293,7 +301,7 @@ export class SqliteFieldClaimRepository implements FieldClaimRepository {
   async create(claim: FieldClaim): Promise<void> {
     const [printerStateId, componentInstallationId] = targetValues(claim.target);
     const [stringValue, numberValue, booleanValue] = valueColumns(claim.value);
-    const [referenceId, packageId, packageVersion, definitionId] = provenanceColumns(
+    const [referenceId, packageId, packageVersion, definitionId, factId] = provenanceColumns(
       claim.provenance
     );
     try {
@@ -312,6 +320,7 @@ export class SqliteFieldClaimRepository implements FieldClaimRepository {
         packageId,
         packageVersion,
         definitionId,
+        factId,
         claim.trust,
         claim.confidence ?? null,
         claim.createdAt

@@ -175,6 +175,18 @@ export function describeFieldClaimRepository(
         },
       ],
       [
+        "package-fact",
+        {
+          sourceType: "knowledge_package",
+          sourceRef: {
+            type: "knowledge_package",
+            packageId: "p",
+            packageVersion: "1",
+            factId: "fact-a",
+          },
+        },
+      ],
+      [
         "definition",
         {
           sourceType: "component_definition",
@@ -194,6 +206,45 @@ export function describeFieldClaimRepository(
       const expected = claim(`source-${id}`, { provenance });
       await fixture.repository.create(expected);
       await expect(fixture.repository.findById(expected.id)).resolves.toEqual(expected);
+    });
+
+    it("keeps historical and multiple exact package facts as independent Claims", async () => {
+      const historical = claim("package-historical", {
+        provenance: {
+          sourceType: "knowledge_package",
+          sourceRef: { type: "knowledge_package", packageId: "p", packageVersion: "1" },
+        },
+      });
+      const factA = claim("package-fact-a", {
+        provenance: {
+          sourceType: "knowledge_package",
+          sourceRef: {
+            type: "knowledge_package",
+            packageId: "p",
+            packageVersion: "1",
+            factId: "fact-a",
+          },
+        },
+      });
+      const factB = claim("package-fact-b", {
+        provenance: {
+          sourceType: "knowledge_package",
+          sourceRef: {
+            type: "knowledge_package",
+            packageId: "p",
+            packageVersion: "1",
+            factId: "fact-b",
+          },
+        },
+      });
+      for (const value of [historical, factA, factB]) await fixture.repository.create(value);
+
+      await expect(fixture.repository.listByTarget(STATE_TARGET)).resolves.toEqual([
+        factA,
+        factB,
+        historical,
+      ]);
+      expect(historical.provenance.sourceRef).not.toHaveProperty("factId");
     });
 
     it.each<ClaimTrust>([

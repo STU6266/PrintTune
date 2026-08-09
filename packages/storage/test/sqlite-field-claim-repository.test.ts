@@ -7,6 +7,7 @@ import {
   createPrinter,
   createPrinterState,
   createWorkspace,
+  resolveFieldClaims,
 } from "@printtune/core";
 import { describe, expect, it } from "vitest";
 
@@ -122,6 +123,54 @@ describe("SqliteFieldClaimRepository integration", () => {
     }
   });
 
+  it("preserves exact fact provenance and independent package versions across close/reopen", async () => {
+    const { directory, path } = temporaryDatabase();
+    const provenance = (packageVersion: string) => ({
+      sourceType: "knowledge_package" as const,
+      sourceRef: {
+        type: "knowledge_package" as const,
+        packageId: "package-a",
+        packageVersion,
+        factId: "fact-a",
+      },
+    });
+    const versionOne = claim("package-v1", { provenance: provenance("1.0") });
+    const versionTwo = claim("package-v2", { provenance: provenance("1.1") });
+    try {
+      const first = openPrintTuneDatabase(path);
+      first.migrate();
+      await seedHierarchy(first);
+      const claims = first.createFieldClaimRepository();
+      await claims.create(versionOne);
+      await claims.create(versionTwo);
+      first.close();
+
+      const second = openPrintTuneDatabase(path);
+      second.migrate();
+      try {
+        const reconstructed = await second
+          .createFieldClaimRepository()
+          .listByTarget({ type: "printer_state", printerStateId: "state-a" });
+        expect(reconstructed).toEqual([versionOne, versionTwo]);
+        expect(
+          resolveFieldClaims({
+            target: { type: "printer_state", printerStateId: "state-a" },
+            fieldPath: "printer.nozzle.diameter",
+            claims: reconstructed,
+          })
+        ).toMatchObject({
+          status: "resolved",
+          reasonCode: "claims_agree",
+          supportingClaimIds: ["package-v1", "package-v2"],
+        });
+      } finally {
+        second.close();
+      }
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  });
+
   it("preserves direct and installation target cascades while retaining unrelated claims", async () => {
     const database = openPrintTuneDatabase(":memory:");
     database.migrate();
@@ -178,6 +227,7 @@ describe("SqliteFieldClaimRepository integration", () => {
     source_package_id: null,
     source_package_version: null,
     source_definition_id: null,
+    source_fact_id: null,
     trust: "user_confirmed",
     confidence: null,
     created_at: TIMESTAMP,
@@ -191,6 +241,21 @@ describe("SqliteFieldClaimRepository integration", () => {
     ["boolean", { value_type: "boolean", number_value: null, boolean_value: 2 }],
     ["unit", { unit: "cm" }],
     ["provenance", { source_type: "knowledge_package" }],
+    [
+      "incomplete fact-level package provenance",
+      { source_type: "knowledge_package", source_fact_id: "fact-a" },
+    ],
+    ["fact ID type", { source_fact_id: 42 }],
+    ["fact ID on other source", { source_fact_id: "fact-a" }],
+    [
+      "malformed package fact ID",
+      {
+        source_type: "knowledge_package",
+        source_package_id: "package-a",
+        source_package_version: "1",
+        source_fact_id: " fact-a",
+      },
+    ],
     ["trust", { trust: "trusted" }],
     ["confidence", { confidence: 2 }],
     ["timestamp", { created_at: "invalid" }],

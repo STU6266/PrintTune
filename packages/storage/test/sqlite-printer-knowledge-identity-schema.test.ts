@@ -85,7 +85,7 @@ function insertUnclassified(database: DatabaseSync, id: string, printerId: strin
 }
 
 describe("SQLite PrinterKnowledgeIdentity schema", () => {
-  it("migrates a populated version-4 database to version 5 without losing existing data", () => {
+  it("migrates a populated version-4 database through version 6 without losing existing data", () => {
     const database = openConfiguredSqliteDatabase(":memory:");
     try {
       runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS.slice(0, 4));
@@ -119,7 +119,7 @@ describe("SQLite PrinterKnowledgeIdentity schema", () => {
 
       migrate(database);
 
-      expect(readSchemaVersion(database)).toBe(5);
+      expect(readSchemaVersion(database)).toBe(6);
       for (const table of [
         "workspaces",
         "printers",
@@ -143,7 +143,7 @@ describe("SQLite PrinterKnowledgeIdentity schema", () => {
     const database = openConfiguredSqliteDatabase(":memory:");
     try {
       migrate(database);
-      expect(readSchemaVersion(database)).toBe(5);
+      expect(readSchemaVersion(database)).toBe(6);
       expect(database.prepare("PRAGMA table_info(printer_knowledge_identities)").all()).toEqual([
         expect.objectContaining({ name: "id", type: "TEXT", notnull: 1, pk: 1 }),
         expect.objectContaining({ name: "printer_id", type: "TEXT", notnull: 1, pk: 0 }),
@@ -398,7 +398,7 @@ describe("SQLite PrinterKnowledgeIdentity schema", () => {
       try {
         migrate(second);
         migrate(second);
-        expect(readSchemaVersion(second)).toBe(5);
+        expect(readSchemaVersion(second)).toBe(6);
         expect(second.prepare("SELECT id FROM printer_knowledge_identities").all()).toEqual([
           { id: "identity-a" },
         ]);
@@ -414,12 +414,12 @@ describe("SQLite PrinterKnowledgeIdentity schema", () => {
     expect(existsSync(directory)).toBe(false);
   });
 
-  it("retains unsupported newer-schema rejection at version 6", () => {
+  it("retains unsupported newer-schema rejection at version 7", () => {
     const database = openConfiguredSqliteDatabase(":memory:");
-    database.exec("PRAGMA user_version = 6");
+    database.exec("PRAGMA user_version = 7");
     try {
       expect(() => migrate(database)).toThrow(UnsupportedSchemaVersionError);
-      expect(readSchemaVersion(database)).toBe(6);
+      expect(readSchemaVersion(database)).toBe(7);
     } finally {
       database.close();
     }
