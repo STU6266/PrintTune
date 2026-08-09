@@ -1,6 +1,6 @@
 import type {
-  ClaimTrust,
   FieldClaim,
+  PackageKnowledgeTrust,
   PrinterKnowledgeIdentity,
   PrinterSeriesKnowledgePackageV1,
   PrinterState,
@@ -14,7 +14,7 @@ import {
   type PrinterSeriesPackageCoreCompatibilityIssue,
 } from "./printer-series-package-interpretation.js";
 
-export type PackageKnowledgeTrust = Extract<ClaimTrust, "developer_verified" | "customer_verified">;
+export type { PackageKnowledgeTrust } from "@printtune/contracts";
 
 export type PrinterSeriesPackageClaimMaterializationErrorCode =
   | "identity_not_known"

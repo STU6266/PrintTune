@@ -340,7 +340,7 @@ describe("SQLite ComponentInstallation schema", () => {
       try {
         runSqliteMigrations(second, PRINTTUNE_SQLITE_MIGRATIONS);
         runSqliteMigrations(second, PRINTTUNE_SQLITE_MIGRATIONS);
-        expect(readSchemaVersion(second)).toBe(6);
+        expect(readSchemaVersion(second)).toBe(7);
         expect(second.prepare("SELECT id FROM component_installations").all()).toEqual([
           { id: "installation-a" },
         ]);

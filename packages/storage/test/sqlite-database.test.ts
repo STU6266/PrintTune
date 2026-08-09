@@ -37,12 +37,12 @@ describe("PrintTune SQLite database", () => {
     database.close();
   });
 
-  it("applies all migrations and records schema version 6", () => {
+  it("applies all migrations and records schema version 7", () => {
     const { path } = createTemporaryDatabasePath();
     const database = openPrintTuneDatabase(path);
     database.migrate();
 
-    expect(database.schemaVersion()).toBe(6);
+    expect(database.schemaVersion()).toBe(7);
     database.close();
 
     const inspectionDatabase = new DatabaseSync(path);
@@ -54,7 +54,7 @@ describe("PrintTune SQLite database", () => {
         expect.objectContaining({ name: "created_at", type: "TEXT", notnull: 1, pk: 0 }),
         expect.objectContaining({ name: "updated_at", type: "TEXT", notnull: 1, pk: 0 }),
       ]);
-      expect(readSchemaVersion(inspectionDatabase)).toBe(6);
+      expect(readSchemaVersion(inspectionDatabase)).toBe(7);
     } finally {
       inspectionDatabase.close();
     }
@@ -66,7 +66,7 @@ describe("PrintTune SQLite database", () => {
     database.migrate();
     database.migrate();
 
-    expect(database.schemaVersion()).toBe(6);
+    expect(database.schemaVersion()).toBe(7);
     database.close();
   });
 
@@ -134,13 +134,13 @@ describe("PrintTune SQLite database", () => {
 
   it("rejects a schema version newer than the application supports", () => {
     const database = openConfiguredSqliteDatabase(":memory:");
-    database.exec("PRAGMA user_version = 7");
+    database.exec("PRAGMA user_version = 8");
 
     try {
       expect(() => runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS)).toThrow(
         UnsupportedSchemaVersionError
       );
-      expect(readSchemaVersion(database)).toBe(7);
+      expect(readSchemaVersion(database)).toBe(8);
     } finally {
       database.close();
     }
@@ -154,7 +154,7 @@ describe("PrintTune SQLite database", () => {
 
     const secondConnection = openPrintTuneDatabase(path);
     try {
-      expect(secondConnection.schemaVersion()).toBe(6);
+      expect(secondConnection.schemaVersion()).toBe(7);
       secondConnection.migrate();
     } finally {
       secondConnection.close();
@@ -181,7 +181,7 @@ describe("PrintTune SQLite database", () => {
 
       runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS);
 
-      expect(readSchemaVersion(database)).toBe(6);
+      expect(readSchemaVersion(database)).toBe(7);
       expect(
         database.prepare("SELECT name FROM workspaces WHERE id = ?").get("workspace-existing")
       ).toEqual({ name: "Bestehend" });
@@ -344,7 +344,7 @@ describe("PrintTune SQLite database", () => {
       runSqliteMigrations(secondDatabase, PRINTTUNE_SQLITE_MIGRATIONS);
       runSqliteMigrations(secondDatabase, PRINTTUNE_SQLITE_MIGRATIONS);
 
-      expect(readSchemaVersion(secondDatabase)).toBe(6);
+      expect(readSchemaVersion(secondDatabase)).toBe(7);
       expect(secondDatabase.prepare("SELECT id FROM printers").all()).toEqual([
         { id: "printer-a" },
       ]);
