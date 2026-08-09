@@ -6,7 +6,13 @@ import { app, BrowserWindow, ipcMain, type WebContents } from "electron";
 import { APP_INFO_CHANNEL, type AppInfo } from "../shared/app-info";
 import { FEATURE_FLAGS_CHANNEL } from "../shared/feature-flags-api";
 import { ActiveWorkspaceSession } from "./active-workspace-session";
+import { FieldResolutionService } from "./field-resolution-service";
 import { initializeApplicationStorage, type ApplicationStorage } from "./application-storage";
+import { PrinterApplicationService } from "./printer-application-service";
+import { PrinterFlowApplicationService } from "./printer-flow-application-service";
+import { registerPrinterIpcHandlers } from "./printer-ipc";
+import { registerPrinterTechnicalDataIpcHandlers } from "./printer-technical-data-ipc";
+import { PrinterTechnicalDataService } from "./printer-technical-data-service";
 import {
   NODE_SQLITE_SMOKE_ARGUMENT,
   NODE_SQLITE_SMOKE_RESULT_PREFIX,
@@ -115,12 +121,30 @@ async function startApplication(): Promise<void> {
   const workspaceRepository = applicationStorage.database.createWorkspaceRepository();
   const workspaceService = new WorkspaceApplicationService(workspaceRepository);
   const activeWorkspaceSession = new ActiveWorkspaceSession(workspaceRepository);
+  const printerFlowService = new PrinterFlowApplicationService(
+    new PrinterApplicationService(applicationStorage.database.createPrinterCreationPersistence()),
+    applicationStorage.database.createPrinterRepository(),
+    applicationStorage.database.createPrinterStateRepository(),
+    activeWorkspaceSession
+  );
+  const fieldClaimRepository = applicationStorage.database.createFieldClaimRepository();
+  const printerTechnicalDataService = new PrinterTechnicalDataService(
+    printerFlowService,
+    fieldClaimRepository,
+    new FieldResolutionService(fieldClaimRepository)
+  );
   registerAppInfoHandler();
   registerFeatureFlagsHandler();
   registerWorkspaceIpcHandlers(
     ipcMain,
     workspaceService,
     activeWorkspaceSession,
+    () => trustedRenderer
+  );
+  registerPrinterIpcHandlers(ipcMain, printerFlowService, () => trustedRenderer);
+  registerPrinterTechnicalDataIpcHandlers(
+    ipcMain,
+    printerTechnicalDataService,
     () => trustedRenderer
   );
   await createWindow();
