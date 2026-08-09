@@ -88,3 +88,4 @@ export {
   createPrinterKnowledgeIdentity,
   type CreatePrinterKnowledgeIdentityInput,
 } from "./printer-knowledge-identity.js";
+export { isStrictIsoUtcTimestamp } from "./timestamp-validation.js";

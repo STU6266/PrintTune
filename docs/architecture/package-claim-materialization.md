@@ -31,15 +31,18 @@ masquerade as package trust.
 Effective facts are not supplied separately. The materializer derives them internally from the
 package and known identity's optional `modelDefinitionId`, using the existing compatibility and
 effective-fact operations. A separate fact array would be redundant and could disagree. The ID seam
-may conceptually be:
+produces a fresh local Claim ID on every call:
 
 ```ts
-type PackageClaimIdFactory = (factId: string) => string;
+type PackageClaimIdFactory = () => string;
 ```
 
 The application layer owns UUID and clock access; tests inject deterministic values. The complete
 package/identity/state/trust context and all facts are validated before the factory is invoked.
-Every returned Claim ID must be valid and unique. Array positions are never identities.
+Every returned Claim ID must be valid and unique. `factId` remains provenance identity and is never
+reused or deterministically transformed into a local Claim ID. Deterministic tests use a closure
+that returns `claim-1`, `claim-2`, and so on in effective-fact call order. Array positions are never
+identities.
 
 One explicit UTC `createdAt` applies to the complete batch. This represents one evidence-application
 event and avoids artificial recency between its facts. Claim IDs do not establish recency, and
@@ -88,7 +91,7 @@ Each selected effective fact produces exactly one Claim:
 
 ```ts
 {
-  id: claimIdFactory(effectiveFact.factId),
+  id: claimIdFactory(),
   target: { type: "printer_state", printerStateId: printerState.id },
   fieldPath: effectiveFact.fieldPath,
   value: effectiveFact.value,
