@@ -313,6 +313,37 @@ describe("InstalledKnowledgePackageSource", () => {
     ).resolves.toEqual({ text: record.rawText, trust: "developer_verified" });
   });
 
+  it("treats latest as an exact opaque version without falling back", async () => {
+    const repository = new InMemoryInstalledKnowledgePackageRepository();
+    const installation = new KnowledgePackageInstallationService(repository, {
+      now: () => INSTALLED_AT,
+    });
+    const source = new InstalledKnowledgePackageSource(repository);
+
+    await installation.installTrustedPackage({
+      rawText: packageText({ packageVersion: "1.0.0" }),
+      installationSource: "bundled_official",
+    });
+    await expect(
+      source.getExactPackage({
+        packageId: "example.synthetic-installed-package",
+        packageVersion: "latest",
+      })
+    ).resolves.toBeUndefined();
+
+    const exactLatestText = packageText({ packageVersion: "latest" });
+    await installation.installTrustedPackage({
+      rawText: exactLatestText,
+      installationSource: "bundled_official",
+    });
+    await expect(
+      source.getExactPackage({
+        packageId: "example.synthetic-installed-package",
+        packageVersion: "latest",
+      })
+    ).resolves.toEqual({ text: exactLatestText, trust: "developer_verified" });
+  });
+
   it.each([
     ["digest_mismatch", sourceRecord({ contentSha256: "a".repeat(64) })],
     [

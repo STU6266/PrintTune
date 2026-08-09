@@ -40,9 +40,10 @@ more exact product within that series. A selection may stop at series level when
 is unknown or irrelevant. Model IDs are only meaningful within their series and package version;
 Alpha does not need a separate globally addressable `PrinterModelDefinition` catalog.
 
-These are proposed future package contracts, not implemented contracts. Technical properties do not
-belong directly on either identity definition; declarative package facts later become sourced
-claims.
+The exact implemented v1 contracts use `seriesDefinitionId`, `seriesDisplayName`,
+`modelDefinitionId`, and `modelDisplayName`. The abbreviated shape above illustrates their
+relationship. Technical properties do not belong directly on either identity definition; declarative
+package facts become sourced Claims.
 
 ## Exact external reference
 
@@ -58,8 +59,8 @@ interface PrinterKnowledgeDefinitionReference {
 ```
 
 The complete tuple identifies the knowledge consulted. `modelDefinitionId` is absent for a
-series-only selection. Package IDs or floating “latest” versions are insufficient because package
-upgrades must not reinterpret historical selections.
+series-only selection. Versions never float: even the literal opaque version `latest` denotes only
+that exact string and cannot select another installed package version.
 
 ## Local selection history and display snapshot
 
@@ -93,10 +94,10 @@ needed to supersede an earlier mistaken known selection without deleting history
 existing user-chosen name remains its local display name; no second custom-model label is needed in
 Alpha.
 
-`Printer` eventually holds a nullable `currentKnowledgeIdentityId` pointing to one of its own
-immutable records. A correction atomically appends a new record and changes that pointer. The
-pointer is current selection metadata, not technical evidence. Historical records are never edited,
-and current selection is not inferred from timestamps or record IDs.
+The dedicated `printer_knowledge_identity_selections` relation stores the optional current identity
+for each Printer. A correction atomically appends a new record and changes that selection. It is
+current metadata, not technical evidence. Historical records are never edited, and current selection
+is not inferred from timestamps or record IDs.
 
 ## Why model identity is not a FieldClaim
 
@@ -112,7 +113,7 @@ created merely to mirror the identity record.
 
 ## Manual selection and future suggestions
 
-Alpha is manual-first. The eventual selection flow is:
+Alpha is manual-first. The intended future user-facing selection flow is:
 
 1. Choose a manufacturer from installed package definitions.
 2. Choose a technically related series and, optionally, an exact model variant.
@@ -126,8 +127,8 @@ automatic detection semantics remain deferred.
 ## Modified printers and immutable states
 
 A selected model supplies baseline knowledge, not a claim that the current machine is stock. When
-package claim generation exists, it targets a specific PrinterState and records the exact package
-version as provenance. Direct evidence about installed hardware continues through
+the implemented package Claim generator targets a specific PrinterState and records the exact
+package version as provenance. Direct evidence about installed hardware continues through
 ComponentInstallation and FieldClaim:
 
 ```text
@@ -167,7 +168,7 @@ a catalog selection for a lifetime identity rather than installed hardware in ev
 
 ## Knowledge-to-Claim flow
 
-The future conceptual flow is:
+The implemented Main-process knowledge-application flow is:
 
 ```text
 user confirms Printer series/model
@@ -194,9 +195,9 @@ Current hardware is represented by ComponentInstallation snapshots and associate
 printer identity record must not duplicate component references, role assignments, nozzle sizes,
 firmware, or other current configuration data.
 
-## Eventual persistence recommendation
+## Implemented persistence
 
-When implemented, use one dedicated append-only `printer_knowledge_identities` table and one
+Migration 005 provides one dedicated append-only `printer_knowledge_identities` table and one
 optional current-record relation for each Printer. This is smaller and clearer than generic
 metadata, putting package columns directly on every PrinterState, or deriving current identity from
 history. Persistence must enforce that the selected record belongs to the same Printer, and changing
@@ -215,14 +216,16 @@ No package definitions need to be copied into the application database. Definiti
 versioned package store; only the exact reference, minimal labels, selection kind, and selection
 time are local.
 
-## Deferred work
+## Implementation status and deferred work
 
-This design does not add:
+Phase 4 implements the TypeScript contract/Core validation, migration 005, SQLite and in-memory
+repositories, atomic create-and-select lifecycle, current-selection reads, exact package references,
+and package-to-FieldClaim application. The following remain deferred:
 
-- TypeScript contracts, SQLite schema, migrations, repositories, IPC, or UI;
-- package schemas, parsing, loading, installation, distribution, updates, or signing;
+- user-facing selection UI and related IPC;
+- package distribution, updates, signing, startup catalogs, and real content;
 - manufacturer catalogs or real printer/model datasets;
-- package-to-FieldClaim generation or reconciliation workflows;
+- PackageApplication/idempotency and reconciliation workflows;
 - automatic detection, import matching, suggestion persistence, or AI matching;
 - package applicability scoring for heavily modified machines;
 - current PrinterState selection or additional PrinterState workflows;

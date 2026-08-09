@@ -28,9 +28,11 @@ The store key is the exact tuple:
 packageId + packageVersion
 ```
 
-`packageVersion` is opaque. Lookup never uses `latest`, ranges, display labels, installation order,
-or semantic-version comparison. Multiple versions such as `P/1.0` and `P/1.1` coexist as separate
-records. There is no global current-package pointer; a Printer's exact
+`packageVersion` is opaque. Lookup never performs latest-version selection, range resolution,
+display-label matching, installation-order selection, or semantic-version comparison. No literal has
+reserved resolution meaning: `latest` can exist only as the exact opaque key `"latest"` and does not
+alias any other version. Multiple versions such as `P/1.0` and `P/1.1` coexist as separate records.
+There is no global current-package pointer; a Printer's exact
 `PrinterKnowledgeIdentity.definitionRef` selects the applicable version.
 
 One key promises one immutable sequence of accepted UTF-8 bytes. Alpha records a lowercase SHA-256
@@ -45,8 +47,8 @@ timestamp. Different content requires a different `packageVersion`.
 
 ## Raw content storage
 
-Alpha should store the exact accepted `.ptpack` text directly in SQLite rather than retaining only
-an import path. Version 1 is one UTF-8 JSON document and has no assets, so this choice:
+Alpha stores the exact accepted `.ptpack` text directly in SQLite rather than retaining only an
+import path. Version 1 is one UTF-8 JSON document and has no assets, so this choice:
 
 - survives deletion or movement of the original import file;
 - keeps content and accepted local metadata in one transaction;
@@ -147,7 +149,7 @@ does not select an identity, create Claims, or otherwise apply the package.
 
 ## Durable source adapter and defensive reads
 
-A future `InstalledKnowledgePackageSource` implements the existing narrow exact-lookup contract:
+The implemented `InstalledKnowledgePackageSource` provides the narrow exact-lookup contract:
 
 ```text
 getExactPackage({ packageId, packageVersion })
@@ -155,8 +157,8 @@ getExactPackage({ packageId, packageVersion })
 ```
 
 It is read-only. It neither chooses another version nor mutates trust, queries a network, or infers
-trust from content. On each exact lookup it should recompute SHA-256 from the stored raw text and
-compare it with `contentSha256`. Package application is infrequent enough that this is the smallest
+trust from content. On each exact lookup it recomputes SHA-256 from the stored raw text and compare
+it with `contentSha256`. Package application is infrequent enough that this is the smallest
 meaningful corruption check without an additional verification lifecycle. A mismatch fails with an
 explicit data-integrity error rather than returning unavailable or repaired content.
 
@@ -175,9 +177,9 @@ non-lowercase or non-64-hex SHA-256 values, empty raw text, invalid strict-UTC `
 impossible source/trust pair. Exact manifest-to-column agreement and package parsing belong to the
 trusted installation path and defensive source/application read, not to every generic row mapping.
 
-## Persistence direction
+## Implemented persistence
 
-The next schema should add one STRICT table structurally equivalent to:
+Migration 007 added this STRICT table and advanced the current schema version to 7:
 
 ```text
 installed_knowledge_packages
@@ -194,17 +196,17 @@ installed_knowledge_packages
 PRIMARY KEY (package_id, package_version)
 ```
 
-All fields are non-null. CHECK constraints should close Alpha to format `1`, type `printer_series`,
-the two source and trust values, their permitted pairings, non-empty normalized identity/text
-values, and lowercase 64-hex digest representation where SQLite can express these deterministically.
-Strict timestamp and complete row validation remain repository responsibilities, consistent with
-existing storage boundaries.
+All fields are non-null. CHECK constraints close Alpha to format `1`, type `printer_series`, the two
+source and trust values, their permitted pairings, non-empty normalized identity/text values, and
+lowercase 64-hex digest representation where SQLite can express these deterministically. Strict
+timestamp and complete row validation remain repository responsibilities, consistent with existing
+storage boundaries.
 
-The initial repository needs only exact `find(packageId, packageVersion)`, deterministic `list()`,
-and creation with immutable collision semantics. Listing orders lexically by `packageId`, then the
-opaque `packageVersion`; lexical order is deterministic, not a version-precedence claim. No generic
-repository, search, publisher filtering, update discovery, latest-version lookup, update method, or
-uninstall method is needed.
+The SQLite and in-memory repositories provide exact `findExact(packageId, packageVersion)`,
+deterministic `list()`, and creation through `accept()` with immutable collision semantics. Listing
+orders lexically by `packageId`, then the opaque `packageVersion`; lexical order is deterministic,
+not a version-precedence claim. No generic repository, search, publisher filtering, update
+discovery, latest-version lookup, update method, or uninstall method is needed.
 
 ## Removal, versions, and historical behavior
 
@@ -232,25 +234,12 @@ overrides, or developer/customer verification. Main derives identity from valida
 computes the digest, and obtains source/trust from the privileged pathway. Any future IPC must be
 narrow and runtime-validated; no IPC is introduced here.
 
-## Recommended implementation split
+## Implementation status
 
-### 4.7b — installed-package storage foundation
-
-- add only the required local record contracts and source/trust metadata;
-- add migration 007 and a focused repository;
-- store exact raw text and SHA-256;
-- implement exact lookup/list and immutable collision semantics; and
-- test malformed-row detection, deterministic listing, idempotency, collisions, and close/reopen.
-
-This task should not implement candidate validation or an application installer.
-
-### 4.7c — trusted installation and source adapter
-
-- implement the staged candidate validation and Core compatibility checks;
-- compute the exact UTF-8 digest and derive trust from a privileged closed source context;
-- atomically accept the package through the storage boundary;
-- implement `InstalledKnowledgePackageSource`; and
-- prove synthetic install → apply → restart → historical resolution.
+InstalledPackage contracts/Core validation, migration 007, SQLite/in-memory repositories, exact raw
+text and SHA-256 storage, immutable acceptance, the trusted Main installer, fixed source/trust
+mapping, `InstalledKnowledgePackageSource`, per-lookup digest verification, and synthetic
+install/apply/restart coverage are implemented.
 
 Startup seeding, filesystem import UI, quarantine, signing, updates, uninstall, trust mutation, IPC,
 and real package content remain later work.

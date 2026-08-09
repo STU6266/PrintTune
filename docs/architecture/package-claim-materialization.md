@@ -5,8 +5,8 @@
 Knowledge Package fact materialization is the pure boundary that turns one validated,
 Core-compatible printer-series package into immutable baseline `FieldClaim`s for one exact
 `PrinterState`. It belongs in `@printtune/knowledge-engine`: package-engine owns format validation,
-Core owns field and Claim semantics, and application/storage code later owns trust acquisition and
-atomic persistence.
+Core owns field and Claim semantics, while Main/storage own trusted package acquisition and atomic
+persistence.
 
 The materializer does not parse packages, select current records, read repositories, create a
 PrinterState, assign trust, or persist Claims. It returns `readonly FieldClaim[]`; a result wrapper
@@ -14,7 +14,7 @@ or PackageApplication model adds nothing required by the first pure implementati
 
 ## Minimum inputs
 
-The proposed operation receives:
+The implemented operation receives:
 
 - one exact `PrinterKnowledgeIdentity`;
 - one validated `PrinterSeriesKnowledgePackageV1`;
@@ -61,9 +61,10 @@ Before creating any Claim, require exact equality between:
 3. identity `definitionRef.seriesDefinitionId` and package `payload.series.seriesDefinitionId`; and
 4. identity `printerId` and target `printerState.printerId`.
 
-There is no `latest`, version substitution, display-name/publisher matching, alias inference, or
-current-state selection. Display snapshots are historical labels, not lookup identity. The caller
-supplies the exact state; the materializer never infers one by timestamp or ID.
+There is no latest-version resolution, version substitution, display-name/publisher matching, alias
+inference, or current-state selection. A literal package version `latest` is just that exact opaque
+key. Display snapshots are historical labels, not lookup identity. The caller supplies the exact
+state; the materializer never infers one by timestamp or ID.
 
 For a series-only identity, absent `modelDefinitionId` produces series-only facts. For an
 exact-model identity, the existing effective-fact operation must find that exact ID. An absent model
@@ -72,14 +73,13 @@ rejects the whole operation; it never falls back, fuzzy matches, or chooses the 
 ## Validation and trust boundary
 
 A valid/Core-compatible package means its structure and technical field semantics are interpretable.
-It does not mean the package is locally trusted. Trust is assigned outside the manifest by a future
-installation/distribution boundary and passed as the closed `PackageKnowledgeTrust` value.
+It does not mean the package is locally trusted. The implemented trusted installation/source
+boundary assigns trust outside the manifest and passes the closed `PackageKnowledgeTrust` value.
 
 The materializer never infers trust from publisher metadata, package namespace, names, contents, or
-technical validity. During the interim Alpha seam, orchestration and synthetic tests may inject an
-approved typed value. This is dependency injection, not package self-trust. Production flows must
-eventually obtain it from a local trusted installation/source boundary; UI and packages must never
-freely select trust. Installation and trust persistence remain future work.
+technical validity. Orchestration and synthetic tests may inject an approved typed value. This is
+dependency injection, not package self-trust. The production Main flow obtains it from
+`InstalledKnowledgePackageSource`; UI and packages never freely select trust.
 
 Core compatibility is checked again at the public materialization boundary for runtime safety. It
 validates the complete package, including unselected models, before IDs are requested or output is
@@ -110,7 +110,7 @@ Each selected effective fact produces exactly one Claim:
 }
 ```
 
-Implementation should call Core `createFieldClaim()` rather than duplicate validation/freezing. The
+The implementation calls Core `createFieldClaim()` rather than duplicating validation/freezing. The
 low-level contract still accepts historical package provenance without `factId`; this boundary never
 produces it. It preserves the winning fact's exact ID, scalar discriminator/value, unit, and field
 path without conversion, rounding, normalization, or AI transformation.
@@ -139,9 +139,9 @@ introduce localization.
 
 ## Persistence, reapplication, and history
 
-Pure materialization performs no writes. Future persistence must insert the complete batch in one
-transaction after successful materialization; if any Claim fails, none may remain stored. The
-storage boundary provides this through atomic `FieldClaimRepository.createBatch()` semantics.
+Pure materialization performs no writes. `PrinterKnowledgeApplicationService` persists the complete
+result with one atomic `FieldClaimRepository.createBatch()` call; if any Claim fails, none remains
+stored.
 
 The pure function cannot know whether invocation is a retry or a deliberate new historical event. It
 therefore returns a fresh batch for each explicit call. Alpha must not infer idempotency from equal
@@ -176,29 +176,18 @@ package authority or special-case resolution.
 
 Trust assignment and Claim persistence never occur before validation.
 
-## Recommended implementation sequence
+## Implementation status
 
-### 4.6b — pure materialization
-
-Implement exact identity/package/series/model/state checks, externally supplied approved trust,
-internally derived facts, mandatory fact provenance, deterministic ID/time seams, immutable Claims,
-typed failures, and no persistence.
-
-### 4.6c — atomic persistence boundary
-
-Add atomic `FieldClaimRepository.createBatch()` persistence.
-
-### 4.6d — application orchestration
-
-The Main-process application seam obtains the current identity from explicit selection persistence,
+The pure materializer, atomic `createBatch()` storage boundary, and Main-process orchestration are
+implemented. The application seam obtains the current identity from explicit selection persistence,
 looks up only its exact package ID and version through a narrow trusted `KnowledgePackageSource`,
 parses and materializes it, and persists the result with one `createBatch()` call. The application
 operation accepts neither package text nor trust. Explicit reapplication creates another immutable
 batch; idempotency remains deferred. No filesystem/network source or runtime IPC wiring is implied.
-The future durable implementation of that exact trusted source is defined in
-[`installed-knowledge-packages.md`](installed-knowledge-packages.md).
+`InstalledKnowledgePackageSource` is the durable exact source and verifies the stored digest on
+every successful lookup. [`installed-knowledge-packages.md`](installed-knowledge-packages.md)
+defines that boundary.
 
-Installed-package storage and trusted installation should follow the staged implementation split in
-that document before any user-facing application. Real printer data, executable package content,
-filesystem loading, IPC, UI, AI, network, printer connectivity, and TestWorkflow assets remain
-outside this design.
+PackageApplication/idempotency, UI-triggered application, automatic reapplication, trust-management
+workflows, real printer data, filesystem loading, IPC, AI, network, printer connectivity, and
+TestWorkflow assets remain outside this design.

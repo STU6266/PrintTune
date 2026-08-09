@@ -2,10 +2,10 @@
 
 ## Status and scope
 
-This document fixes the design boundary for the first PrintTune Knowledge Package format. It defines
-the common envelope and the `printer_series` payload needed by the implemented
-PrinterKnowledgeIdentity model. It does not implement TypeScript contracts, JSON Schema, validation,
-loading, installation, or package content.
+This document defines the implemented first PrintTune Knowledge Package format. Phase 4 provides its
+TypeScript contracts, Draft 2020-12 JSON Schema, Ajv structural validation, semantic validation,
+Core compatibility checks, deterministic printer-series interpretation, trusted local installation,
+and Claim materialization. Only synthetic content is present; real package content remains deferred.
 
 Knowledge Packages are:
 
@@ -87,8 +87,11 @@ A future PrintTune build must reject a format version it does not support before
 payload. It must not guess that a newer format is backward compatible. Supporting another format
 adds an explicit parser/validator path; it does not mutate the meaning of format v1.
 
-No reference may use `latest`, a range, or another floating package version. Compatibility ranges
-belong only in `coreCompatibility`, not in identity or claim provenance.
+Floating or latest-version resolution is forbidden. `packageVersion` is always an exact opaque
+string, and no token has reserved resolution meaning. A literal value such as `latest` identifies
+only the exact tuple `(packageId, "latest")`; it never aliases a newer, semantically greatest, or
+otherwise selected version. Compatibility ranges belong only in `coreCompatibility`, not in identity
+or Claim provenance.
 
 ## Package types
 
@@ -99,8 +102,8 @@ type KnowledgePackageType = "printer_series" | "component_catalog" | "firmware" 
 ```
 
 Each type has a distinct schema selected by `packageType`; a generic untyped payload is invalid.
-Only `printer_series` is in the recommended first implementation. The other three names reserve
-clear architectural roles but must be rejected until their payload schemas are implemented.
+Only `printer_series` is implemented. The other three names reserve clear architectural roles but
+are rejected until their payload schemas are implemented.
 
 Test procedures and calibration workflows are not silently placed in these types. If future
 TestWorkflow content needs distribution, it receives a separately reviewed package type and
@@ -176,11 +179,11 @@ either scope makes the package invalid. The same path at series level and model 
 expresses an intentional override; the same path in different models is also valid because only the
 selected model participates.
 
-Preprocessing later produces one effective package Claim per field, not two conflicting Claims for
-an overridden value. It retains the exact fact object that won. If a series fact with `factId: A` is
-overridden by a selected-model fact with `factId: B`, the effective value and source fact are B. It
-must not generate a synthetic third fact identity. The immutable package preserves both original
-facts.
+The implemented preprocessing produces one effective package Claim per field, not two conflicting
+Claims for an overridden value. It retains the exact fact object that won. If a series fact with
+`factId: A` is overridden by a selected-model fact with `factId: B`, the effective value and source
+fact are B. It must not generate a synthetic third fact identity. The immutable package preserves
+both original facts.
 
 This is a small override rule, not a general inheritance engine. Models cannot remove a series fact
 in v1; absence means no override.
@@ -222,9 +225,8 @@ fact can influence evidence but cannot decide how competing evidence resolves.
 
 ### Exact fact provenance
 
-Before package facts can be converted into persisted FieldClaims, the existing `knowledge_package`
-source reference must be aligned to retain the exact source `factId` in addition to `packageId` and
-`packageVersion`:
+The implemented `knowledge_package` source reference retains the exact source `factId` in addition
+to `packageId` and `packageVersion`:
 
 ```text
 packageId + packageVersion + factId
@@ -233,8 +235,8 @@ packageId + packageVersion + factId
 The backward-compatible evolution is defined in
 [`field-claims-and-resolution.md`](field-claims-and-resolution.md#knowledge-package-fact-provenance-evolution):
 historical package-level references remain valid with an absent `factId`, while every newly
-generated Package v1 Claim must carry the winning fact's exact `factId`. Contract and persistence
-implementation remain prerequisites for package-to-Claim generation.
+generated Package v1 Claim carries the winning fact's exact `factId`. Core validation, migration
+006, repository reconstruction, and the Package v1 materializer implement this distinction.
 
 Facts do not duplicate `seriesDefinitionId` or `modelDefinitionId`. The globally unique `factId`
 identifies the source inside one immutable package version, while PrinterKnowledgeIdentity
@@ -290,10 +292,10 @@ community import is not promoted into either category. Until a reviewed unverifi
 vocabulary and behavior exist, such an artifact may be structurally valid but must remain
 quarantined and must not generate package-derived Claims.
 
-Installation source belongs in future local installation metadata, never in the manifest. Likely
-local source categories include bundled official distribution and customer-managed installation;
-manual import and future repositories can be added only with explicit trust behavior. The package
-cannot truthfully assert how it was installed.
+Installation source belongs in local installation metadata, never in the manifest. Alpha implements
+the exact mappings `bundled_official` to `developer_verified` and `customer_verified_installation`
+to `customer_verified`. Manual/community import remains deferred until it has explicit trust
+behavior. The package cannot truthfully assert how it was installed.
 
 Publisher strings are descriptive metadata, not cryptographic identity. Alpha does not require a new
 signature protocol: bundled official packages can inherit trust from the trusted application
@@ -323,7 +325,7 @@ not defined here.
 
 ## Validation and acceptance pipeline
 
-Future loading uses distinct stages:
+The implemented trusted installation path uses distinct stages:
 
 ```text
 file boundary and resource limits
@@ -344,15 +346,16 @@ The responsibilities are deliberately separate:
 - **Semantic validation** checks trimmed identifiers, uniqueness, the exact series/model reference
   graph, package-wide `factId` uniqueness, duplicate field paths within each definition, model
   pairing, and immutable `(packageId, packageVersion)` identity.
-- **Core compatibility validation** resolves every fact against the Core registry and checks target,
-  scalar type, and canonical unit exactly.
+- **Core compatibility validation** checks that the current semantic contract version
+  `KNOWLEDGE_PACKAGE_CORE_CONTRACT_VERSION = 1.0.0` lies in the declared interval, then resolves
+  every fact against the Core registry and checks target, scalar type, and canonical unit exactly.
 - **Trust validation** evaluates external distribution/installation evidence and assigns local
   status. Manifest publisher text cannot satisfy this stage.
 
 Validation is all-or-nothing. An invalid, unsupported, incompatible, or untrusted package must not
 partially install, generate Claims, mutate Printer or PrinterState data, or affect existing
-installed packages. It returns explicit stage-specific validation problems. Installation transaction
-design and error contracts remain implementation work.
+installed packages. It returns explicit stage-specific validation problems. Repository acceptance
+provides immutable collision and metadata-conflict behavior.
 
 ## Updates, removal, and history
 
@@ -393,9 +396,9 @@ application boundaries. It may not directly:
 safety policy, and must never be interpreted as code, an expression, a path, a URL, a callback
 identifier, or a general database key outside exact package provenance.
 
-## Exact first implementation recommendation
+## Implemented v1 scope
 
-The first schema and validator task should implement only:
+The implemented schema, validators, and interpretation provide:
 
 1. the closed common v1 envelope;
 2. `packageType: "printer_series"`;
@@ -408,26 +411,23 @@ The first schema and validator task should implement only:
    model;
 8. deterministic series-plus-model override preprocessing that retains the winning source fact;
 9. acceptance of known Core `printer_state` fields only; and
-10. explicit structural, semantic, Core-compatibility, and trust-stage errors.
+10. explicit structural, semantic, Core-compatibility, and trust-stage errors; and
+11. exact winning-fact materialization with atomic FieldClaim batch persistence.
 
-The first implementation must not include component references, dependencies, aliases, localized
-maps, rules, archives, assets, signatures, extension fields, package-derived Claim generation,
-installation persistence, or real printer data.
+The implementation does not include component references, dependencies, aliases, localized maps,
+rules, archives, assets, signatures, extension fields, or real printer data.
 
 ## Deferred items
 
 The following remain deliberately outside v1's first implementation:
 
-- TypeScript package contracts, JSON Schema, Ajv, parsers, validators, loaders, repositories, and
-  installation metadata;
 - payload schemas for `component_catalog`, `firmware`, and `slicer`;
 - package-defined extension fields and extension registry composition;
 - component references and dependency resolution;
 - publisher signing, certificate/key lifecycle, revocation, and community trust;
 - ZIP archives, images, documentation assets, localization, and bundles;
 - declarative rule schemas and rule-engine integration;
-- FieldClaim provenance alignment for `factId`, package-to-FieldClaim generation, confidence
-  semantics, and reconciliation;
+- PackageApplication/idempotency, automatic reapplication, and trust-management workflows;
 - TestWorkflow assets, package distribution, updates, and removal implementation;
 - real manufacturer, model, firmware, slicer, component, or technical values;
 - UI, AI integration, network access, and printer connectivity.
