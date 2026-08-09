@@ -133,7 +133,11 @@ function validateReasonCode(value: unknown): ResolvedFieldReasonCode {
   return value as ResolvedFieldReasonCode;
 }
 
-function copySupportingClaimIds(value: unknown, status: ResolvedFieldStatus): readonly string[] {
+function copySupportingClaimIds(
+  value: unknown,
+  status: ResolvedFieldStatus,
+  reasonCode: ResolvedFieldReasonCode
+): readonly string[] {
   if (!Array.isArray(value)) {
     throw new InvalidResolvedFieldSupportingClaimIdsError();
   }
@@ -143,7 +147,8 @@ function copySupportingClaimIds(value: unknown, status: ResolvedFieldStatus): re
   if (new Set(ids).size !== ids.length) {
     throw new InvalidResolvedFieldSupportingClaimIdsError();
   }
-  if ((status === "missing" && ids.length !== 0) || (status !== "missing" && ids.length === 0)) {
+  const permitsEmpty = status === "missing" || reasonCode === "unknown_field_definition";
+  if ((status === "missing" && ids.length !== 0) || (!permitsEmpty && ids.length === 0)) {
     throw new InvalidResolvedFieldSupportingClaimIdsError();
   }
   return Object.freeze(ids);
@@ -154,11 +159,12 @@ export function createResolvedField(input: CreateResolvedFieldInput): ResolvedFi
     throw new InvalidResolvedFieldStatusError();
   }
   const status = validateStatus(input.status);
+  const reasonCode = validateReasonCode(input.reasonCode);
   const base = {
     target: copyFieldTarget(input.target, () => new InvalidResolvedFieldTargetError()),
     fieldPath: validateFieldPath(input.fieldPath, () => new InvalidResolvedFieldPathError()),
-    supportingClaimIds: copySupportingClaimIds(input.supportingClaimIds, status),
-    reasonCode: validateReasonCode(input.reasonCode),
+    supportingClaimIds: copySupportingClaimIds(input.supportingClaimIds, status, reasonCode),
+    reasonCode,
   };
 
   if (status !== "resolved") {

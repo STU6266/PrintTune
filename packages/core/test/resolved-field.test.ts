@@ -185,7 +185,7 @@ describe("createResolvedField", () => {
     expect(result.supportingClaimIds).toEqual(["claim-b", "claim-a", "claim-c"]);
   });
 
-  it("allows an empty support list only for missing", () => {
+  it("allows an empty support list for missing and an unknown definition", () => {
     expect(
       createResolvedField({
         target: STATE_TARGET,
@@ -193,6 +193,15 @@ describe("createResolvedField", () => {
         status: "missing",
         supportingClaimIds: [],
         reasonCode: "no_usable_claims",
+      }).supportingClaimIds
+    ).toEqual([]);
+    expect(
+      createResolvedField({
+        target: STATE_TARGET,
+        fieldPath: "extension.klipper.some-field",
+        status: "blocked",
+        supportingClaimIds: [],
+        reasonCode: "unknown_field_definition",
       }).supportingClaimIds
     ).toEqual([]);
     expect(() => createResolvedField(resolvedInput({ supportingClaimIds: [] }))).toThrow(
