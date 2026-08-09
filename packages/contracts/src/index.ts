@@ -24,3 +24,10 @@ export type {
   FieldClaimTarget,
   FieldClaimValue,
 } from "./field-claim.js";
+export type {
+  ResolutionPolicy,
+  ResolutionPolicyKind,
+  ResolvedField,
+  ResolvedFieldReasonCode,
+  ResolvedFieldStatus,
+} from "./resolved-field.js";

@@ -48,3 +48,17 @@ export {
   createFieldClaim,
   type CreateFieldClaimInput,
 } from "./field-claim.js";
+export {
+  InvalidResolutionPolicyError,
+  InvalidResolvedFieldPathError,
+  InvalidResolvedFieldReasonCodeError,
+  InvalidResolvedFieldStatusError,
+  InvalidResolvedFieldSupportingClaimIdsError,
+  InvalidResolvedFieldTargetError,
+  InvalidResolvedFieldUnitError,
+  InvalidResolvedFieldValueError,
+  createResolutionPolicy,
+  createResolvedField,
+  type CreateResolutionPolicyInput,
+  type CreateResolvedFieldInput,
+} from "./resolved-field.js";

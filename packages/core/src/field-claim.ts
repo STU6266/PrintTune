@@ -9,6 +9,16 @@ import type {
   FieldClaimValue,
 } from "@printtune/contracts";
 
+import {
+  copyFieldTarget,
+  copyFieldValue,
+  hasExactKeys,
+  isRecord,
+  validateFieldPath,
+  validateFieldUnit,
+  validateNormalizedId,
+} from "./field-claim-validation.js";
+
 export interface CreateFieldClaimInput {
   readonly id: string;
   readonly target: FieldClaimTarget;
@@ -93,10 +103,8 @@ export class InvalidFieldClaimTimestampError extends Error {
   }
 }
 
-const FIELD_PATH_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)+$/;
 const ISO_UTC_TIMESTAMP_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z$/;
-const CANONICAL_UNITS = new Set<CanonicalUnit>(["mm", "mm/s", "mm/s2", "degC", "mm3/s", "ratio"]);
 const CLAIM_TRUST_VALUES = new Set<ClaimTrust>([
   "developer_verified",
   "customer_verified",
@@ -119,83 +127,6 @@ const SOURCES_WITHOUT_REFERENCE = new Set<ClaimSourceType>([
   "ai_unverified",
 ]);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  const actualKeys = Object.keys(value);
-  return actualKeys.length === keys.length && keys.every((key) => actualKeys.includes(key));
-}
-
-function validateOpaqueId(value: unknown, createError: () => Error): string {
-  if (typeof value !== "string" || value.length === 0 || value.trim() !== value) {
-    throw createError();
-  }
-  return value;
-}
-
-function copyTarget(target: unknown): FieldClaimTarget {
-  if (!isRecord(target)) {
-    throw new InvalidFieldClaimTargetError();
-  }
-  if (target.type === "printer_state" && hasExactKeys(target, ["type", "printerStateId"])) {
-    return Object.freeze({
-      type: "printer_state",
-      printerStateId: validateOpaqueId(
-        target.printerStateId,
-        () => new InvalidFieldClaimTargetError()
-      ),
-    });
-  }
-  if (
-    target.type === "component_installation" &&
-    hasExactKeys(target, ["type", "componentInstallationId"])
-  ) {
-    return Object.freeze({
-      type: "component_installation",
-      componentInstallationId: validateOpaqueId(
-        target.componentInstallationId,
-        () => new InvalidFieldClaimTargetError()
-      ),
-    });
-  }
-  throw new InvalidFieldClaimTargetError();
-}
-
-function copyValue(value: unknown): FieldClaimValue {
-  if (!isRecord(value) || !hasExactKeys(value, ["type", "value"])) {
-    throw new InvalidFieldClaimValueError();
-  }
-  if (value.type === "string" && typeof value.value === "string") {
-    return Object.freeze({ type: "string", value: value.value });
-  }
-  if (value.type === "number" && typeof value.value === "number" && Number.isFinite(value.value)) {
-    return Object.freeze({ type: "number", value: value.value });
-  }
-  if (value.type === "boolean" && typeof value.value === "boolean") {
-    return Object.freeze({ type: "boolean", value: value.value });
-  }
-  throw new InvalidFieldClaimValueError();
-}
-
-function validateFieldPath(value: unknown): string {
-  if (typeof value !== "string" || !FIELD_PATH_PATTERN.test(value)) {
-    throw new InvalidFieldClaimPathError();
-  }
-  return value;
-}
-
-function validateUnit(unit: unknown, value: FieldClaimValue): CanonicalUnit | undefined {
-  if (unit === undefined) {
-    return undefined;
-  }
-  if (value.type !== "number" || !CANONICAL_UNITS.has(unit as CanonicalUnit)) {
-    throw new InvalidFieldClaimUnitError();
-  }
-  return unit as CanonicalUnit;
-}
-
 function copySourceReference(reference: unknown): ClaimSourceReference {
   if (!isRecord(reference) || typeof reference.type !== "string") {
     throw new InvalidFieldClaimProvenanceError();
@@ -208,7 +139,7 @@ function copySourceReference(reference: unknown): ClaimSourceReference {
     }
     return Object.freeze({
       type,
-      id: validateOpaqueId(reference.id, () => new InvalidFieldClaimProvenanceError()),
+      id: validateNormalizedId(reference.id, () => new InvalidFieldClaimProvenanceError()),
     });
   };
 
@@ -224,11 +155,11 @@ function copySourceReference(reference: unknown): ClaimSourceReference {
       }
       return Object.freeze({
         type: "knowledge_package",
-        packageId: validateOpaqueId(
+        packageId: validateNormalizedId(
           reference.packageId,
           () => new InvalidFieldClaimProvenanceError()
         ),
-        packageVersion: validateOpaqueId(
+        packageVersion: validateNormalizedId(
           reference.packageVersion,
           () => new InvalidFieldClaimProvenanceError()
         ),
@@ -239,15 +170,15 @@ function copySourceReference(reference: unknown): ClaimSourceReference {
       }
       return Object.freeze({
         type: "component_definition",
-        packageId: validateOpaqueId(
+        packageId: validateNormalizedId(
           reference.packageId,
           () => new InvalidFieldClaimProvenanceError()
         ),
-        packageVersion: validateOpaqueId(
+        packageVersion: validateNormalizedId(
           reference.packageVersion,
           () => new InvalidFieldClaimProvenanceError()
         ),
-        definitionId: validateOpaqueId(
+        definitionId: validateNormalizedId(
           reference.definitionId,
           () => new InvalidFieldClaimProvenanceError()
         ),
@@ -324,16 +255,16 @@ function validateTimestamp(timestamp: unknown): string {
 }
 
 export function createFieldClaim(input: CreateFieldClaimInput): FieldClaim {
-  const target = copyTarget(input.target);
-  const value = copyValue(input.value);
-  const unit = validateUnit(input.unit, value);
+  const target = copyFieldTarget(input.target, () => new InvalidFieldClaimTargetError());
+  const value = copyFieldValue(input.value, () => new InvalidFieldClaimValueError());
+  const unit = validateFieldUnit(input.unit, value, () => new InvalidFieldClaimUnitError());
   const provenance = copyProvenance(input.provenance);
   const confidence = validateConfidence(input.confidence);
 
   return Object.freeze({
-    id: validateOpaqueId(input.id, () => new InvalidFieldClaimIdError()),
+    id: validateNormalizedId(input.id, () => new InvalidFieldClaimIdError()),
     target,
-    fieldPath: validateFieldPath(input.fieldPath),
+    fieldPath: validateFieldPath(input.fieldPath, () => new InvalidFieldClaimPathError()),
     value,
     ...(unit === undefined ? {} : { unit }),
     provenance,
