@@ -379,6 +379,10 @@ Claims for another target or field path are outside the request and are not supp
 
 ### Resolution policy boundary
 
+Canonical field semantics and future policy lookup are defined in
+[`field-definition-registry.md`](field-definition-registry.md). The registry remains outside the
+generic resolver.
+
 The later architecture has three layers:
 
 ```text
