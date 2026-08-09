@@ -277,6 +277,9 @@ The temporary state after 4.5b remains coherent because no package-to-Claim gene
 persisted data still uses the older valid subset. Package-to-Claim generation must wait until 4.5c
 is complete.
 
+The subsequent pure conversion boundary, including exact identity/state alignment and external
+package trust, is defined in [`package-claim-materialization.md`](package-claim-materialization.md).
+
 ## Trust and confidence
 
 The initial trust vocabulary is:
