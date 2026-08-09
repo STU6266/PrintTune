@@ -3,6 +3,9 @@
 Core domain model terminology (use consistently)
 
 - `Printer`: a logical representation of a physical printer.
+- Printer-series/model knowledge is an optional, versioned lifetime-identity selection whose
+  technical facts remain state-scoped claims; see
+  [`printer-knowledge-identity.md`](printer-knowledge-identity.md).
 - `PrinterState`: an immutable snapshot of a printer at a point in time. Hardware changes create new
   `PrinterState`s.
 - `ComponentInstallation`: an installed component (mainboard, hotend, probe) with metadata and

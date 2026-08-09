@@ -15,6 +15,9 @@ Organization
 - Namespaced by logical group, e.g. `printer-series.creality.ender-3-classic`.
 - A series package may contain multiple models and revisions; split a package when technically
   needed.
+- A physical Printer's optional, version-exact series/model selection and local identity snapshot
+  follow [`printer-knowledge-identity.md`](printer-knowledge-identity.md); package facts remain
+  sourced claims rather than current-hardware identity.
 
 Localization
 
