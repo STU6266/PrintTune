@@ -42,7 +42,7 @@ describe("application storage lifecycle", () => {
     try {
       expect(existsSync(paths.dataDirectory)).toBe(true);
       expect(existsSync(paths.databasePath)).toBe(true);
-      expect(storage.database.schemaVersion()).toBe(2);
+      expect(storage.database.schemaVersion()).toBe(3);
       await expect(storage.database.createWorkspaceRepository().list()).resolves.toEqual([]);
     } finally {
       storage.close();
@@ -56,7 +56,7 @@ describe("application storage lifecycle", () => {
 
     const secondStorage = initializeApplicationStorage(appDataDirectory);
     try {
-      expect(secondStorage.database.schemaVersion()).toBe(2);
+      expect(secondStorage.database.schemaVersion()).toBe(3);
     } finally {
       secondStorage.close();
     }

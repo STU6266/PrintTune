@@ -171,3 +171,14 @@ immutable history without tying stored printer records to package availability. 
 physical-instance continuity needed to distinguish “same component in a later state” from “new
 replacement component.” It does not yet define component facts, package loading, persistence, or
 resolution behavior.
+
+## Alpha persistence boundary
+
+The application SQLite database persists ComponentInstallation snapshots, but not
+ComponentDefinition catalog records. Definitions remain external, versioned KnowledgePackage data;
+installations retain their optional exact reference and identity snapshot.
+
+SQLite enforces one role per PrinterState with a unique `(printer_state_id, role)` index. Its
+leftmost column also supports listing a state's installations, so no redundant single-column state
+index is needed. A separate non-unique `component_instance_id` index supports historical lookup of
+the same physical component across PrinterStates.
