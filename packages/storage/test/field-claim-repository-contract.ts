@@ -82,6 +82,88 @@ export function describeFieldClaimRepository(
       ]);
     });
 
+    it("accepts an empty atomic batch as a no-op", async () => {
+      await expect(fixture.repository.createBatch([])).resolves.toBeUndefined();
+      await expect(fixture.repository.listByTarget(STATE_TARGET)).resolves.toEqual([]);
+    });
+
+    it("creates single and multiple Claim batches visible through normal reads", async () => {
+      const single = claim("batch-single");
+      await fixture.repository.createBatch([single]);
+      await expect(fixture.repository.findById(single.id)).resolves.toEqual(single);
+
+      const later = claim("batch-later", { timestamp: LATE });
+      const otherPath = claim("batch-firmware", {
+        fieldPath: "firmware.type",
+        value: { type: "string", value: "synthetic" },
+        unit: undefined,
+      });
+      await fixture.repository.createBatch([later, otherPath]);
+      await expect(fixture.repository.listByTarget(STATE_TARGET)).resolves.toEqual([
+        otherPath,
+        single,
+        later,
+      ]);
+    });
+
+    it("atomically creates exact and historical package provenance without deduplication", async () => {
+      const packageProvenance = (factId?: string): ClaimProvenance => ({
+        sourceType: "knowledge_package",
+        sourceRef: {
+          type: "knowledge_package",
+          packageId: "package-a",
+          packageVersion: "opaque-v1",
+          ...(factId === undefined ? {} : { factId }),
+        },
+      });
+      const historical = claim("batch-historical", { provenance: packageProvenance() });
+      const factA = claim("batch-fact-a", { provenance: packageProvenance("fact-a") });
+      const factB = claim("batch-fact-b", {
+        provenance: packageProvenance("fact-b"),
+        fieldPath: "firmware.type",
+        value: { type: "string", value: "same" },
+        unit: undefined,
+      });
+      const sameEvidence = claim("batch-same-evidence", {
+        provenance: packageProvenance("fact-a"),
+      });
+
+      await fixture.repository.createBatch([historical, factA, factB, sameEvidence]);
+
+      for (const expected of [historical, factA, factB, sameEvidence]) {
+        await expect(fixture.repository.findById(expected.id)).resolves.toEqual(expected);
+      }
+      expect(historical.provenance.sourceRef).not.toHaveProperty("factId");
+    });
+
+    it("rejects duplicate IDs within a batch without creating any incoming Claim", async () => {
+      const first = claim("batch-duplicate");
+      const duplicate = claim("batch-duplicate", { value: { type: "number", value: 0.6 } });
+
+      await expect(fixture.repository.createBatch([first, duplicate])).rejects.toMatchObject({
+        name: "DuplicateFieldClaimError",
+        claimId: "batch-duplicate",
+      });
+      await expect(fixture.repository.findById("batch-duplicate")).resolves.toBeUndefined();
+    });
+
+    it("preserves existing history and rolls back every incoming Claim on an existing duplicate", async () => {
+      const existing = claim("batch-existing", { value: { type: "number", value: 0.4 } });
+      await fixture.repository.create(existing);
+
+      await expect(
+        fixture.repository.createBatch([
+          claim("batch-new-a"),
+          claim("batch-existing", { value: { type: "number", value: 0.8 } }),
+          claim("batch-new-b"),
+        ])
+      ).rejects.toBeInstanceOf(DuplicateFieldClaimError);
+
+      await expect(fixture.repository.findById(existing.id)).resolves.toEqual(existing);
+      await expect(fixture.repository.findById("batch-new-a")).resolves.toBeUndefined();
+      await expect(fixture.repository.findById("batch-new-b")).resolves.toBeUndefined();
+    });
+
     it("filters by exact target and field path", async () => {
       const diameter = claim("diameter");
       const firmware = claim("firmware", {

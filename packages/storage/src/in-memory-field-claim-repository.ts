@@ -57,6 +57,17 @@ export class InMemoryFieldClaimRepository implements FieldClaimRepository {
     this.#claims.set(claim.id, copyClaim(claim));
   }
 
+  async createBatch(claims: readonly FieldClaim[]): Promise<void> {
+    const staged = new Map<string, FieldClaim>();
+    for (const claim of claims) {
+      if (this.#claims.has(claim.id) || staged.has(claim.id)) {
+        throw new DuplicateFieldClaimError(claim.id);
+      }
+      staged.set(claim.id, copyClaim(claim));
+    }
+    for (const [id, claim] of staged) this.#claims.set(id, claim);
+  }
+
   async findById(id: string): Promise<FieldClaim | undefined> {
     const claim = this.#claims.get(id);
     return claim ? copyClaim(claim) : undefined;

@@ -140,7 +140,8 @@ introduce localization.
 ## Persistence, reapplication, and history
 
 Pure materialization performs no writes. Future persistence must insert the complete batch in one
-transaction after successful materialization; if any Claim fails, none may remain stored.
+transaction after successful materialization; if any Claim fails, none may remain stored. The
+storage boundary provides this through atomic `FieldClaimRepository.createBatch()` semantics.
 
 The pure function cannot know whether invocation is a retry or a deliberate new historical event. It
 therefore returns a fresh batch for each explicit call. Alpha must not infer idempotency from equal

@@ -189,6 +189,7 @@ describe("FieldResolutionService", () => {
   it("blocks an unknown valid field without querying the repository", async () => {
     const repository: FieldClaimRepository = {
       create: vi.fn(),
+      createBatch: vi.fn(),
       findById: vi.fn(),
       listByTarget: vi.fn(),
       listByTargetAndFieldPath: vi.fn(),
@@ -297,6 +298,7 @@ async function repositoryWith(claimValue: FieldClaim): Promise<InMemoryFieldClai
 function incorrectRepository(claims: FieldClaim[]): FieldClaimRepository {
   return {
     create: vi.fn(),
+    createBatch: vi.fn(),
     findById: vi.fn(),
     listByTarget: vi.fn(),
     listByTargetAndFieldPath: vi.fn().mockResolvedValue(claims),

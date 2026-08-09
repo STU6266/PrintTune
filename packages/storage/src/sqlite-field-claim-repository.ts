@@ -20,6 +20,8 @@ interface FieldClaimSqliteStatement {
 }
 
 interface FieldClaimSqliteConnection {
+  readonly isTransaction: boolean;
+  exec(sql: string): void;
   prepare(sql: string): FieldClaimSqliteStatement;
 }
 
@@ -263,6 +265,7 @@ function provenanceColumns(
 }
 
 export class SqliteFieldClaimRepository implements FieldClaimRepository {
+  readonly #database: FieldClaimSqliteConnection;
   readonly #create: FieldClaimSqliteStatement;
   readonly #find: FieldClaimSqliteStatement;
   readonly #listByState: FieldClaimSqliteStatement;
@@ -271,6 +274,7 @@ export class SqliteFieldClaimRepository implements FieldClaimRepository {
   readonly #listByInstallationAndPath: FieldClaimSqliteStatement;
 
   constructor(database: FieldClaimSqliteConnection) {
+    this.#database = database;
     this.#create = database.prepare(`
       INSERT INTO field_claims (
         id, printer_state_id, component_installation_id, field_path,
@@ -299,38 +303,63 @@ export class SqliteFieldClaimRepository implements FieldClaimRepository {
   }
 
   async create(claim: FieldClaim): Promise<void> {
-    const [printerStateId, componentInstallationId] = targetValues(claim.target);
-    const [stringValue, numberValue, booleanValue] = valueColumns(claim.value);
-    const [referenceId, packageId, packageVersion, definitionId, factId] = provenanceColumns(
-      claim.provenance
-    );
     try {
-      this.#create.run(
-        claim.id,
-        printerStateId,
-        componentInstallationId,
-        claim.fieldPath,
-        claim.value.type,
-        stringValue,
-        numberValue,
-        booleanValue,
-        claim.unit ?? null,
-        claim.provenance.sourceType,
-        referenceId,
-        packageId,
-        packageVersion,
-        definitionId,
-        factId,
-        claim.trust,
-        claim.confidence ?? null,
-        claim.createdAt
-      );
+      this.#insertClaim(claim);
     } catch (error) {
       if (this.#find.get(claim.id) !== undefined) {
         throw new DuplicateFieldClaimError(claim.id);
       }
       throw error;
     }
+  }
+
+  async createBatch(claims: readonly FieldClaim[]): Promise<void> {
+    if (claims.length === 0) return;
+
+    const incomingIds = new Set<string>();
+    for (const claim of claims) {
+      if (incomingIds.has(claim.id) || this.#find.get(claim.id) !== undefined) {
+        throw new DuplicateFieldClaimError(claim.id);
+      }
+      incomingIds.add(claim.id);
+    }
+
+    this.#database.exec("BEGIN IMMEDIATE");
+    try {
+      for (const claim of claims) this.#insertClaim(claim);
+      this.#database.exec("COMMIT");
+    } catch (error) {
+      if (this.#database.isTransaction) this.#database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  #insertClaim(claim: FieldClaim): void {
+    const [printerStateId, componentInstallationId] = targetValues(claim.target);
+    const [stringValue, numberValue, booleanValue] = valueColumns(claim.value);
+    const [referenceId, packageId, packageVersion, definitionId, factId] = provenanceColumns(
+      claim.provenance
+    );
+    this.#create.run(
+      claim.id,
+      printerStateId,
+      componentInstallationId,
+      claim.fieldPath,
+      claim.value.type,
+      stringValue,
+      numberValue,
+      booleanValue,
+      claim.unit ?? null,
+      claim.provenance.sourceType,
+      referenceId,
+      packageId,
+      packageVersion,
+      definitionId,
+      factId,
+      claim.trust,
+      claim.confidence ?? null,
+      claim.createdAt
+    );
   }
 
   async findById(id: string): Promise<FieldClaim | undefined> {

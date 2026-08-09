@@ -92,6 +92,32 @@ describe("SqliteFieldClaimRepository integration", () => {
     }
   });
 
+  it("rolls back earlier inserts when a later batch Claim violates a foreign key", async () => {
+    const database = openPrintTuneDatabase(":memory:");
+    database.migrate();
+    try {
+      await seedHierarchy(database);
+      const repository = database.createFieldClaimRepository();
+      const existing = claim("existing-before-failure");
+      await repository.create(existing);
+
+      await expect(
+        repository.createBatch([
+          claim("valid-before-failure"),
+          claim("missing-parent", {
+            target: { type: "printer_state", printerStateId: "missing-state" },
+          }),
+        ])
+      ).rejects.toThrow();
+
+      await expect(repository.findById(existing.id)).resolves.toEqual(existing);
+      await expect(repository.findById("valid-before-failure")).resolves.toBeUndefined();
+      await expect(repository.findById("missing-parent")).resolves.toBeUndefined();
+    } finally {
+      database.close();
+    }
+  });
+
   it("persists special strings safely across close and reopen", async () => {
     const { directory, path } = temporaryDatabase();
     const expected = claim("persistent", {
@@ -141,8 +167,7 @@ describe("SqliteFieldClaimRepository integration", () => {
       first.migrate();
       await seedHierarchy(first);
       const claims = first.createFieldClaimRepository();
-      await claims.create(versionOne);
-      await claims.create(versionTwo);
+      await claims.createBatch([versionOne, versionTwo]);
       first.close();
 
       const second = openPrintTuneDatabase(path);

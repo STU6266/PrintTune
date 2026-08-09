@@ -2,6 +2,7 @@ import type { FieldClaim, FieldClaimTarget } from "@printtune/contracts";
 
 export interface FieldClaimRepository {
   create(claim: FieldClaim): Promise<void>;
+  createBatch(claims: readonly FieldClaim[]): Promise<void>;
   findById(id: string): Promise<FieldClaim | undefined>;
   listByTarget(target: FieldClaimTarget): Promise<FieldClaim[]>;
   listByTargetAndFieldPath(target: FieldClaimTarget, fieldPath: string): Promise<FieldClaim[]>;
