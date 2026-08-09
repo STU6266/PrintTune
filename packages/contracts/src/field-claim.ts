@@ -31,6 +31,7 @@ export type ClaimSourceReference =
       readonly type: "knowledge_package";
       readonly packageId: string;
       readonly packageVersion: string;
+      readonly factId?: string;
     }
   | {
       readonly type: "component_definition";

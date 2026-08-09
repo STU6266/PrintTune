@@ -217,6 +217,109 @@ describe("createFieldClaim", () => {
     expect(createFieldClaim(validInput({ provenance })).provenance).toEqual(provenance);
   });
 
+  it("preserves historical package-level provenance without inventing a fact ID", () => {
+    const claim = createFieldClaim(validInput());
+    expect(claim.provenance).toEqual({
+      sourceType: "knowledge_package",
+      sourceRef: { type: "knowledge_package", packageId: "base", packageVersion: "1.0.0" },
+    });
+    expect(claim.provenance.sourceRef).not.toHaveProperty("factId");
+  });
+
+  it("retains exact package fact provenance and opaque package versions", () => {
+    const provenance: ClaimProvenance = {
+      sourceType: "knowledge_package",
+      sourceRef: {
+        type: "knowledge_package",
+        packageId: "example.package",
+        packageVersion: "release-candidate_7",
+        factId: "series-nozzle",
+      },
+    };
+    const claim = createFieldClaim(validInput({ provenance }));
+
+    expect(claim.provenance).toEqual(provenance);
+    expect(Object.isFrozen(claim.provenance)).toBe(true);
+    expect(Object.isFrozen(claim.provenance.sourceRef)).toBe(true);
+  });
+
+  it.each(["", " ", " fact-a", "fact-a ", 42, null, undefined])(
+    "rejects malformed package fact ID %#",
+    (factId) => {
+      expect(() =>
+        createFieldClaim(
+          validInput({
+            provenance: {
+              sourceType: "knowledge_package",
+              sourceRef: {
+                type: "knowledge_package",
+                packageId: "base",
+                packageVersion: "1",
+                factId,
+              },
+            } as unknown as ClaimProvenance,
+          })
+        )
+      ).toThrow(InvalidFieldClaimProvenanceError);
+    }
+  );
+
+  it("rejects unexpected package provenance properties and leaves component definitions unchanged", () => {
+    expect(() =>
+      createFieldClaim(
+        validInput({
+          provenance: {
+            sourceType: "knowledge_package",
+            sourceRef: {
+              type: "knowledge_package",
+              packageId: "base",
+              packageVersion: "1",
+              factId: "fact-a",
+              extra: true,
+            },
+          } as unknown as ClaimProvenance,
+        })
+      )
+    ).toThrow(InvalidFieldClaimProvenanceError);
+    expect(() =>
+      createFieldClaim(
+        validInput({
+          provenance: {
+            sourceType: "component_definition",
+            sourceRef: {
+              type: "component_definition",
+              packageId: "base",
+              packageVersion: "1",
+              definitionId: "definition-a",
+              factId: "not-allowed",
+            },
+          } as unknown as ClaimProvenance,
+        })
+      )
+    ).toThrow(InvalidFieldClaimProvenanceError);
+  });
+
+  it("defensively copies exact package fact provenance", () => {
+    const sourceRef = {
+      type: "knowledge_package" as const,
+      packageId: "base",
+      packageVersion: "1",
+      factId: "fact-a",
+    };
+    const provenance = { sourceType: "knowledge_package" as const, sourceRef };
+    const claim = createFieldClaim(validInput({ provenance }));
+
+    sourceRef.factId = "mutated";
+    expect(claim.provenance.sourceRef).toEqual({
+      type: "knowledge_package",
+      packageId: "base",
+      packageVersion: "1",
+      factId: "fact-a",
+    });
+    expect(claim.provenance).not.toBe(provenance);
+    expect(claim.provenance.sourceRef).not.toBe(sourceRef);
+  });
+
   it("rejects missing, mismatched, and arbitrary provenance references", () => {
     expect(() =>
       createFieldClaim(

@@ -150,9 +150,19 @@ function copySourceReference(reference: unknown): ClaimSourceReference {
     case "test_run":
       return copyIdReference(reference.type);
     case "knowledge_package":
-      if (!hasExactKeys(reference, ["type", "packageId", "packageVersion"])) {
+      const hasHistoricalKeys = hasExactKeys(reference, ["type", "packageId", "packageVersion"]);
+      const hasFactKeys = hasExactKeys(reference, [
+        "type",
+        "packageId",
+        "packageVersion",
+        "factId",
+      ]);
+      if (!hasHistoricalKeys && !hasFactKeys) {
         throw new InvalidFieldClaimProvenanceError();
       }
+      const factId = hasFactKeys
+        ? validateNormalizedId(reference.factId, () => new InvalidFieldClaimProvenanceError())
+        : undefined;
       return Object.freeze({
         type: "knowledge_package",
         packageId: validateNormalizedId(
@@ -163,6 +173,7 @@ function copySourceReference(reference: unknown): ClaimSourceReference {
           reference.packageVersion,
           () => new InvalidFieldClaimProvenanceError()
         ),
+        ...(factId === undefined ? {} : { factId }),
       });
     case "component_definition":
       if (!hasExactKeys(reference, ["type", "packageId", "packageVersion", "definitionId"])) {

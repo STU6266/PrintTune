@@ -300,6 +300,44 @@ describe("installed_hardware_confirmation", () => {
   });
 });
 
+describe("knowledge-package fact provenance neutrality", () => {
+  function packageFact(id: string, factId: string, value: number): FieldClaim {
+    return claim(id, {
+      value: { type: "number", value },
+      provenance: {
+        sourceType: "knowledge_package",
+        sourceRef: {
+          type: "knowledge_package",
+          packageId: "base",
+          packageVersion: "1",
+          factId,
+        },
+      },
+    });
+  }
+
+  it("treats equal technical values from different fact IDs as agreement", () => {
+    expect(
+      resolve([packageFact("claim-a", "fact-a", 0.4), packageFact("claim-b", "fact-b", 0.4)])
+    ).toMatchObject({
+      status: "resolved",
+      value: { type: "number", value: 0.4 },
+      reasonCode: "claims_agree",
+      supportingClaimIds: ["claim-a", "claim-b"],
+    });
+  });
+
+  it("attributes conflict to differing values rather than differing fact IDs", () => {
+    expect(
+      resolve([packageFact("claim-a", "fact-a", 0.4), packageFact("claim-b", "fact-b", 0.6)])
+    ).toMatchObject({
+      status: "conflict",
+      reasonCode: "unresolved_conflict",
+      supportingClaimIds: ["claim-a", "claim-b"],
+    });
+  });
+});
+
 describe("safety bound policies", () => {
   it("selects the minimum reliable upper bound", () => {
     expect(
