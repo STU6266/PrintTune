@@ -37,6 +37,12 @@ importers:
       "@printtune/core":
         specifier: workspace:*
         version: link:../../packages/core
+      "@printtune/knowledge-engine":
+        specifier: workspace:*
+        version: link:../../packages/knowledge-engine
+      "@printtune/package-engine":
+        specifier: workspace:*
+        version: link:../../packages/package-engine
       "@printtune/storage":
         specifier: workspace:*
         version: link:../../packages/storage

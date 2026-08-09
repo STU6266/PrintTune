@@ -184,11 +184,17 @@ Implement exact identity/package/series/model/state checks, externally supplied 
 internally derived facts, mandatory fact provenance, deterministic ID/time seams, immutable Claims,
 typed failures, and no persistence.
 
-### 4.6c — atomic application orchestration
+### 4.6c — atomic persistence boundary
 
-Add a storage transaction that materializes and persists the complete batch, then prove with
-synthetic data that existing resolution reads the stored Claims. Package installation/trust storage
-is not part of that step.
+Add atomic `FieldClaimRepository.createBatch()` persistence.
+
+### 4.6d — application orchestration
+
+The Main-process application seam obtains the current identity from explicit selection persistence,
+looks up only its exact package ID and version through a narrow trusted `KnowledgePackageSource`,
+parses and materializes it, and persists the result with one `createBatch()` call. The application
+operation accepts neither package text nor trust. Explicit reapplication creates another immutable
+batch; idempotency remains deferred. No filesystem/network source or runtime IPC wiring is implied.
 
 Only afterwards should PrintTune design installed-package storage, durable trust assignment, and
 user-facing application. Real printer data, executable package content, filesystem loading, IPC, UI,

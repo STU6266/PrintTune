@@ -13,6 +13,8 @@
   "references": [
     { "path": "../../packages/contracts" },
     { "path": "../../packages/core" },
+    { "path": "../../packages/knowledge-engine" },
+    { "path": "../../packages/package-engine" },
     { "path": "../../packages/storage" }
   ]
 }

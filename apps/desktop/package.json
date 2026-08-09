@@ -16,6 +16,8 @@
   "dependencies": {
     "@printtune/contracts": "workspace:*",
     "@printtune/core": "workspace:*",
+    "@printtune/knowledge-engine": "workspace:*",
+    "@printtune/package-engine": "workspace:*",
     "@printtune/storage": "workspace:*",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
