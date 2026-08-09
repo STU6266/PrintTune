@@ -76,3 +76,15 @@ export {
   findCoreFieldDefinition,
   listCoreFieldDefinitions,
 } from "./core-field-definition-registry.js";
+export {
+  InvalidPrinterKnowledgeDefinitionReferenceError,
+  InvalidPrinterKnowledgeDisplaySnapshotError,
+  InvalidPrinterKnowledgeIdentityIdError,
+  InvalidPrinterKnowledgeIdentityKindError,
+  InvalidPrinterKnowledgeIdentityPrinterIdError,
+  InvalidPrinterKnowledgeIdentityShapeError,
+  InvalidPrinterKnowledgeIdentityTimestampError,
+  InvalidPrinterKnowledgeModelPairingError,
+  createPrinterKnowledgeIdentity,
+  type CreatePrinterKnowledgeIdentityInput,
+} from "./printer-knowledge-identity.js";

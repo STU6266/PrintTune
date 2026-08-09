@@ -10,6 +10,12 @@ export type { Workspace } from "./workspace.js";
 export type { Printer } from "./printer.js";
 export type { PrinterState } from "./printer-state.js";
 export type {
+  KnownPrinterKnowledgeIdentity,
+  PrinterKnowledgeDefinitionReference,
+  PrinterKnowledgeIdentity,
+  UnclassifiedPrinterKnowledgeIdentity,
+} from "./printer-knowledge-identity.js";
+export type {
   ComponentDefinition,
   ComponentDefinitionReference,
   ComponentInstallation,
