@@ -17,5 +17,8 @@ provenance-bearing FieldClaims rather than mutable properties on either identity
 conversion boundary and externally established trust requirement are defined in
 [`package-claim-materialization.md`](package-claim-materialization.md).
 
+The durable Alpha boundary for exact accepted content, local installation source, and trust is
+designed in [`installed-knowledge-packages.md`](installed-knowledge-packages.md).
+
 Distribution, installation storage, signature verification, dependencies, rules, assets, package
 derived claims, and real manufacturer content remain separate future work.

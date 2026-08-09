@@ -195,7 +195,10 @@ looks up only its exact package ID and version through a narrow trusted `Knowled
 parses and materializes it, and persists the result with one `createBatch()` call. The application
 operation accepts neither package text nor trust. Explicit reapplication creates another immutable
 batch; idempotency remains deferred. No filesystem/network source or runtime IPC wiring is implied.
+The future durable implementation of that exact trusted source is defined in
+[`installed-knowledge-packages.md`](installed-knowledge-packages.md).
 
-Only afterwards should PrintTune design installed-package storage, durable trust assignment, and
-user-facing application. Real printer data, executable package content, filesystem loading, IPC, UI,
-AI, network, printer connectivity, and TestWorkflow assets remain outside this design.
+Installed-package storage and trusted installation should follow the staged implementation split in
+that document before any user-facing application. Real printer data, executable package content,
+filesystem loading, IPC, UI, AI, network, printer connectivity, and TestWorkflow assets remain
+outside this design.
