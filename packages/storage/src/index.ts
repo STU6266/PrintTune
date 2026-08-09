@@ -44,3 +44,22 @@ export {
   FieldClaimDataIntegrityError,
   SqliteFieldClaimRepository,
 } from "./sqlite-field-claim-repository.js";
+export {
+  DuplicatePrinterKnowledgeIdentityError,
+  type PrinterKnowledgeIdentityRepository,
+} from "./printer-knowledge-identity-repository.js";
+export { InMemoryPrinterKnowledgeIdentityRepository } from "./in-memory-printer-knowledge-identity-repository.js";
+export {
+  InMemoryPrinterKnowledgeIdentitySelectionPersistence,
+  PrinterKnowledgeIdentityNotFoundError,
+  PrinterKnowledgeIdentityOwnershipError,
+  type PrinterKnowledgeIdentitySelectionPersistence,
+} from "./printer-knowledge-identity-selection-persistence.js";
+export {
+  PrinterKnowledgeIdentityDataIntegrityError,
+  SqlitePrinterKnowledgeIdentityRepository,
+} from "./sqlite-printer-knowledge-identity-repository.js";
+export {
+  PrinterKnowledgeIdentitySelectionDataIntegrityError,
+  SqlitePrinterKnowledgeIdentitySelectionPersistence,
+} from "./sqlite-printer-knowledge-identity-selection-persistence.js";
