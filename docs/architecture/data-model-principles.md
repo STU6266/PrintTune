@@ -9,7 +9,8 @@ Core domain model terminology (use consistently)
   provenance. Its identity model is defined in
   [`component-identity-model.md`](component-identity-model.md).
 - `FieldClaim`: a single observed or imported claim about a printer field (value + source +
-  timestamp).
+  timestamp). Targeting, provenance, trust, and value semantics are defined in
+  [`field-claims-and-resolution.md`](field-claims-and-resolution.md).
 - `ResolvedField`: the resolved value for a field derived from one or more `FieldClaim`s and
   resolution rules.
 - `KnowledgePackage`: a declarative package of facts, rules, and help content.
