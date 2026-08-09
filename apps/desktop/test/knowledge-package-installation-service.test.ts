@@ -42,6 +42,8 @@ function syntheticPackage(
     displayName?: string;
     publisherDisplayName?: string;
     incompatible?: boolean;
+    minimumCoreVersion?: string;
+    maximumCoreVersionExclusive?: string | null;
   } = {}
 ): PrinterSeriesKnowledgePackageV1 {
   return {
@@ -54,7 +56,12 @@ function syntheticPackage(
       publisherId: "example.synthetic-publisher",
       publisherDisplayName: overrides.publisherDisplayName ?? "Synthetic Publisher",
     },
-    coreCompatibility: { minimumVersion: "1.0.0", maximumVersionExclusive: "2.0.0" },
+    coreCompatibility: {
+      minimumVersion: overrides.minimumCoreVersion ?? "1.0.0",
+      ...(overrides.maximumCoreVersionExclusive === null
+        ? {}
+        : { maximumVersionExclusive: overrides.maximumCoreVersionExclusive ?? "2.0.0" }),
+    },
     payload: {
       series: {
         seriesDefinitionId: "synthetic-series",
@@ -198,6 +205,29 @@ describe("KnowledgePackageInstallationService", () => {
     );
     expect(now).not.toHaveBeenCalled();
     expect(accept).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["future minimum", { minimumCoreVersion: "999.0.0", maximumCoreVersionExclusive: null }],
+    [
+      "exclusive upper bound equal to current",
+      { minimumCoreVersion: "0.1.0", maximumCoreVersionExclusive: "1.0.0" },
+    ],
+  ] as const)("rejects %s before clock use or repository acceptance", async (_label, overrides) => {
+    const repository = new InMemoryInstalledKnowledgePackageRepository();
+    const accept = vi.spyOn(repository, "accept");
+    const now = vi.fn(() => INSTALLED_AT);
+    const service = new KnowledgePackageInstallationService(repository, { now });
+
+    await expect(
+      service.installTrustedPackage({
+        rawText: packageText(overrides),
+        installationSource: "bundled_official",
+      })
+    ).rejects.toMatchObject({ code: "incompatible_package" });
+    expect(now).not.toHaveBeenCalled();
+    expect(accept).not.toHaveBeenCalled();
+    await expect(repository.list()).resolves.toEqual([]);
   });
 
   it("keeps exact reinstall idempotent and preserves the original installedAt", async () => {

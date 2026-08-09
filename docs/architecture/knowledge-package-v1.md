@@ -63,6 +63,16 @@ The minimum is inclusive and the optional maximum is exclusive; prerelease compa
 Semantic Versioning. The interval must be non-empty. This ordered compatibility interval does not
 make package-content versions semantically ordered by association.
 
+The shipped Knowledge Package/Core semantic contract version is currently `1.0.0`. It covers the
+canonical FieldDefinitions, targets, value types, canonical units, and interpretation semantics
+required by Knowledge Package v1. It is independent of the application release, package content
+version, `formatVersion`, database schema, UI features, and AI capabilities. A future incompatible
+change to these Core semantics may advance this contract version.
+
+Runtime compatibility validation accepts a package exactly when the current contract version is at
+least its inclusive minimum and, when present, below its exclusive maximum. Trusted installation and
+package materialization both enforce this check.
+
 Unknown envelope fields are rejected in v1. This makes misspellings visible and prevents ignored
 content from appearing effective.
 

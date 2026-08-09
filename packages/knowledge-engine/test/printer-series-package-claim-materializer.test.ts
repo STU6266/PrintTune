@@ -290,6 +290,21 @@ describe("materializePrinterSeriesPackageClaims", () => {
     expect(createClaimId).not.toHaveBeenCalled();
   });
 
+  it("defensively rejects an incompatible Core interval without requesting Claim IDs", () => {
+    const value = structuredClone(packageFixture());
+    (value.coreCompatibility as { minimumVersion: string }).minimumVersion = "999.0.0";
+    const createClaimId = sequentialIds();
+    const error = expectFailure(input({ package: value, createClaimId }), "incompatible_package");
+    expect(error.compatibilityIssues).toContainEqual(
+      expect.objectContaining({
+        code: "incompatible_core_version",
+        currentCoreVersion: "1.0.0",
+        minimumVersion: "999.0.0",
+      })
+    );
+    expect(createClaimId).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid batch timestamps before requesting IDs", () => {
     const createClaimId = sequentialIds();
     expectFailure(

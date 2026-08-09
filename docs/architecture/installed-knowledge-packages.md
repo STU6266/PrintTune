@@ -12,6 +12,11 @@ package therefore does not remove or invalidate Claims, PrinterKnowledgeIdentity
 PrinterState history. A known current identity may remain pinned to an unavailable package: old
 Claims still resolve, while applying that package to another state fails as package unavailable.
 
+Installed immutable content also remains stored if a later shipped Knowledge Package/Core contract
+version falls outside the package's declared compatibility interval. Exact lookup and parsing may
+still succeed, but compatibility validation rejects new application or materialization. The stored
+package, its trust, and historical Claims are not rewritten or removed.
+
 The Alpha store accepts only inert, validated printer-series v1 JSON. It does not execute package
 content or grant filesystem, network, shell, AI, printer, firmware, slicer, or G-code capabilities.
 

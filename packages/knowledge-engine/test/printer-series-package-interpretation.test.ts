@@ -4,6 +4,7 @@ import type {
   PackageFieldFactV1,
   PrinterSeriesKnowledgePackageV1,
 } from "@printtune/contracts";
+import { KNOWLEDGE_PACKAGE_CORE_CONTRACT_VERSION } from "@printtune/core";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -217,6 +218,52 @@ describe("printer-series Core FieldDefinition compatibility", () => {
     ]);
     expect(Object.isFrozen(error.issues)).toBe(true);
     expect(error.issues.every(Object.isFrozen)).toBe(true);
+  });
+});
+
+describe("printer-series Core contract version compatibility", () => {
+  it("exposes the initial semantic contract version independently of package content versions", () => {
+    expect(KNOWLEDGE_PACKAGE_CORE_CONTRACT_VERSION).toBe("1.0.0");
+  });
+
+  it.each([
+    ["equal minimum", "1.0.0", undefined],
+    ["older minimum without maximum", "0.9.0", undefined],
+    ["below exclusive maximum", "0.9.0", "1.0.1"],
+    ["prerelease minimum", "1.0.0-alpha.1", undefined],
+    ["prerelease exclusive maximum", "0.9.0", "1.0.1-beta.1"],
+  ] as const)("accepts %s", (_label, minimumVersion, maximumVersionExclusive) => {
+    const value = mutablePackage();
+    (
+      value as { coreCompatibility: { minimumVersion: string; maximumVersionExclusive?: string } }
+    ).coreCompatibility = {
+      minimumVersion,
+      ...(maximumVersionExclusive === undefined ? {} : { maximumVersionExclusive }),
+    };
+    expect(validatePrinterSeriesPackageCoreCompatibility(value)).toBe(value);
+  });
+
+  it.each([
+    ["future minimum", "1.0.1", undefined],
+    ["exclusive maximum equal to current", "0.9.0", "1.0.0"],
+    ["prerelease future minimum", "1.0.1-beta.1", undefined],
+  ] as const)("rejects %s", (_label, minimumVersion, maximumVersionExclusive) => {
+    const value = mutablePackage();
+    (
+      value as { coreCompatibility: { minimumVersion: string; maximumVersionExclusive?: string } }
+    ).coreCompatibility = {
+      minimumVersion,
+      ...(maximumVersionExclusive === undefined ? {} : { maximumVersionExclusive }),
+    };
+    const error = expectCompatibilityIssue(value, "incompatible_core_version");
+    expect(error.issues).toContainEqual({
+      path: "/coreCompatibility",
+      code: "incompatible_core_version",
+      message: "Package Core compatibility interval does not include the current Core contract",
+      currentCoreVersion: "1.0.0",
+      minimumVersion,
+      ...(maximumVersionExclusive === undefined ? {} : { maximumVersionExclusive }),
+    });
   });
 });
 

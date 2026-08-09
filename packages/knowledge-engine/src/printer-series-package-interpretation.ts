@@ -1,24 +1,43 @@
 import type { PackageFieldFactV1, PrinterSeriesKnowledgePackageV1 } from "@printtune/contracts";
-import { findCoreFieldDefinition } from "@printtune/core";
+import { KNOWLEDGE_PACKAGE_CORE_CONTRACT_VERSION, findCoreFieldDefinition } from "@printtune/core";
+import { gte, lt } from "semver";
 
 export type PrinterSeriesPackageCoreCompatibilityIssueCode =
+  | "incompatible_core_version"
   | "unknown_field_definition"
   | "invalid_target_type"
   | "incompatible_value_type"
   | "incompatible_unit";
 
-export interface PrinterSeriesPackageCoreCompatibilityIssue {
+interface PrinterSeriesPackageCoreCompatibilityIssueBase {
   readonly path: string;
-  readonly factId: string;
-  readonly fieldPath: string;
   readonly code: PrinterSeriesPackageCoreCompatibilityIssueCode;
   readonly message: string;
 }
 
+export interface IncompatibleCoreVersionIssue extends PrinterSeriesPackageCoreCompatibilityIssueBase {
+  readonly code: "incompatible_core_version";
+  readonly currentCoreVersion: string;
+  readonly minimumVersion: string;
+  readonly maximumVersionExclusive?: string;
+}
+
+export interface PrinterSeriesPackageFactCompatibilityIssue extends PrinterSeriesPackageCoreCompatibilityIssueBase {
+  readonly code: Exclude<
+    PrinterSeriesPackageCoreCompatibilityIssueCode,
+    "incompatible_core_version"
+  >;
+  readonly factId: string;
+  readonly fieldPath: string;
+}
+
+export type PrinterSeriesPackageCoreCompatibilityIssue =
+  IncompatibleCoreVersionIssue | PrinterSeriesPackageFactCompatibilityIssue;
+
 export class InvalidPrinterSeriesPackageCoreCompatibilityError extends Error {
   override readonly name = "InvalidPrinterSeriesPackageCoreCompatibilityError";
   constructor(readonly issues: readonly PrinterSeriesPackageCoreCompatibilityIssue[]) {
-    super("Printer-series package facts are incompatible with Core FieldDefinitions");
+    super("Printer-series package is incompatible with the current Core semantic contract");
   }
 }
 
@@ -42,10 +61,32 @@ export class InvalidPrinterSeriesEffectiveFactsError extends Error {
 function issue(
   path: string,
   fact: PackageFieldFactV1,
-  code: PrinterSeriesPackageCoreCompatibilityIssueCode,
+  code: Exclude<PrinterSeriesPackageCoreCompatibilityIssueCode, "incompatible_core_version">,
   message: string
-): PrinterSeriesPackageCoreCompatibilityIssue {
+): PrinterSeriesPackageFactCompatibilityIssue {
   return { path, factId: fact.factId, fieldPath: fact.fieldPath, code, message };
+}
+
+function validateCoreVersionInterval(
+  value: PrinterSeriesKnowledgePackageV1
+): IncompatibleCoreVersionIssue[] {
+  const { minimumVersion, maximumVersionExclusive } = value.coreCompatibility;
+  const currentCoreVersion = KNOWLEDGE_PACKAGE_CORE_CONTRACT_VERSION;
+  const compatible =
+    gte(currentCoreVersion, minimumVersion) &&
+    (maximumVersionExclusive === undefined || lt(currentCoreVersion, maximumVersionExclusive));
+
+  if (compatible) return [];
+  return [
+    {
+      path: "/coreCompatibility",
+      code: "incompatible_core_version",
+      message: "Package Core compatibility interval does not include the current Core contract",
+      currentCoreVersion,
+      minimumVersion,
+      ...(maximumVersionExclusive === undefined ? {} : { maximumVersionExclusive }),
+    },
+  ];
 }
 
 function validateFact(
@@ -97,8 +138,9 @@ export function validatePrinterSeriesPackageCoreCompatibility(
   value: PrinterSeriesKnowledgePackageV1
 ): PrinterSeriesKnowledgePackageV1 {
   const { series } = value.payload;
-  const issues = series.facts.flatMap((fact, index) =>
-    validateFact(fact, `/payload/series/facts/${index}`)
+  const issues: PrinterSeriesPackageCoreCompatibilityIssue[] = validateCoreVersionInterval(value);
+  issues.push(
+    ...series.facts.flatMap((fact, index) => validateFact(fact, `/payload/series/facts/${index}`))
   );
   series.models.forEach((model, modelIndex) => {
     model.facts.forEach((fact, factIndex) => {

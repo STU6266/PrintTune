@@ -96,3 +96,4 @@ export {
   validateInstalledKnowledgePackageIdentity,
   type InstalledKnowledgePackageField,
 } from "./installed-knowledge-package.js";
+export { KNOWLEDGE_PACKAGE_CORE_CONTRACT_VERSION } from "./knowledge-package-core-contract.js";

@@ -6,6 +6,8 @@ export {
   validatePrinterSeriesPackageCoreCompatibility,
   type PrinterSeriesPackageCoreCompatibilityIssue,
   type PrinterSeriesPackageCoreCompatibilityIssueCode,
+  type IncompatibleCoreVersionIssue,
+  type PrinterSeriesPackageFactCompatibilityIssue,
 } from "./printer-series-package-interpretation.js";
 export {
   PrinterSeriesPackageClaimMaterializationError,
