@@ -42,3 +42,14 @@ export type {
   ResolvedFieldReasonCode,
   ResolvedFieldStatus,
 } from "./resolved-field.js";
+export type {
+  KnowledgePackageCoreCompatibilityV1,
+  KnowledgePackagePublisherV1,
+  KnowledgePackageType,
+  KnowledgePackageV1,
+  PackageFieldFactV1,
+  PrinterModelVariantDefinitionV1,
+  PrinterSeriesDefinitionV1,
+  PrinterSeriesKnowledgePackageV1,
+  PrinterSeriesKnowledgePackagePayloadV1,
+} from "./knowledge-package-v1.js";

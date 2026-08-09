@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://printtune.local/schemas/knowledge-package-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "formatVersion",
+    "packageId",
+    "packageVersion",
+    "packageType",
+    "displayName",
+    "publisher",
+    "coreCompatibility",
+    "payload"
+  ],
+  "properties": {
+    "formatVersion": { "const": 1 },
+    "packageId": { "type": "string", "minLength": 1 },
+    "packageVersion": { "type": "string", "minLength": 1 },
+    "packageType": { "const": "printer_series" },
+    "displayName": { "$ref": "#/$defs/nonEmptyTrimmedString" },
+    "description": { "type": "string" },
+    "publisher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publisherId", "publisherDisplayName"],
+      "properties": {
+        "publisherId": { "$ref": "#/$defs/nonEmptyTrimmedString" },
+        "publisherDisplayName": { "$ref": "#/$defs/nonEmptyTrimmedString" }
+      }
+    },
+    "coreCompatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimumVersion"],
+      "properties": {
+        "minimumVersion": { "type": "string", "minLength": 1 },
+        "maximumVersionExclusive": { "type": "string", "minLength": 1 }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["series"],
+      "properties": {
+        "series": { "$ref": "#/$defs/printerSeries" }
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyTrimmedString": {
+      "type": "string",
+      "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$"
+    },
+    "normalizedId": { "type": "string", "minLength": 1 },
+    "fieldPath": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)+$"
+    },
+    "canonicalUnit": {
+      "enum": ["mm", "mm/s", "mm/s2", "degC", "mm3/s", "ratio"]
+    },
+    "fieldValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "string" },
+            "value": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "number" },
+            "value": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "boolean" },
+            "value": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factId", "fieldPath", "value"],
+      "properties": {
+        "factId": { "$ref": "#/$defs/normalizedId" },
+        "fieldPath": { "$ref": "#/$defs/fieldPath" },
+        "value": { "$ref": "#/$defs/fieldValue" },
+        "unit": { "$ref": "#/$defs/canonicalUnit" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "value": {
+                "type": "object",
+                "required": ["type"],
+                "properties": { "type": { "const": "number" } }
+              }
+            }
+          },
+          "else": { "properties": { "unit": false } }
+        }
+      ]
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modelDefinitionId", "modelDisplayName", "facts"],
+      "properties": {
+        "modelDefinitionId": { "$ref": "#/$defs/normalizedId" },
+        "modelDisplayName": { "$ref": "#/$defs/nonEmptyTrimmedString" },
+        "facts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fact" }
+        }
+      }
+    },
+    "printerSeries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seriesDefinitionId",
+        "manufacturerDisplayName",
+        "seriesDisplayName",
+        "facts",
+        "models"
+      ],
+      "properties": {
+        "seriesDefinitionId": { "$ref": "#/$defs/normalizedId" },
+        "manufacturerDisplayName": { "$ref": "#/$defs/nonEmptyTrimmedString" },
+        "seriesDisplayName": { "$ref": "#/$defs/nonEmptyTrimmedString" },
+        "facts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fact" }
+        },
+        "models": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/model" }
+        }
+      }
+    }
+  }
+}
