@@ -6,13 +6,14 @@ PrintTune stores technical facts as immutable `FieldClaim` records. A claim says
 source asserted one typed value for one canonical field on one specific target. Claims are evidence;
 they are not automatically the value that PrintTune should use.
 
-A later resolution step derives a `ResolvedField` for the same target and field path. Resolution
-retains the supporting claim IDs and an explicit status instead of overwriting conflicting or older
-claims. This separation lets PrintTune preserve provenance, uncertainty, and history while still
-providing a usable value when the evidence permits one.
+Alpha derives a `ResolvedField` for the same target and field path on demand. Resolution retains the
+supporting claim IDs and an explicit status instead of overwriting conflicting or older claims. This
+separation lets PrintTune preserve provenance, uncertainty, and history while still providing a
+usable value when the evidence permits one.
 
-This document defines the data shape and deterministic Alpha resolution semantics only. It does not
-implement a resolver, safety engine, persistence, or package loading.
+This document defines the implemented FieldClaim and ResolvedField shapes, immutable Claim
+persistence, and deterministic Alpha resolution semantics. Package loading, a broader safety engine,
+and persisted resolution history remain deferred.
 
 ## FieldClaim
 
@@ -70,9 +71,9 @@ Examples:
 | Field path                       | Target                                            |
 | -------------------------------- | ------------------------------------------------- |
 | `printer.nozzle.diameter`        | PrinterState when no nozzle installation is known |
-| `printer.hotend.max_temperature` | Relevant ComponentInstallation when identified    |
+| `printer.hotend.max-temperature` | PrinterState                                      |
 | `component.probe.offset.x`       | Probe ComponentInstallation                       |
-| `firmware.max_velocity`          | PrinterState                                      |
+| `firmware.motion.max-velocity`   | PrinterState                                      |
 | `slicer.retraction.distance`     | PrinterState                                      |
 
 The first example is deliberately permitted at PrinterState scope for incomplete or imported data.
@@ -96,13 +97,13 @@ these rules:
 - changing the meaning of a path requires a new path rather than silently reinterpreting old claims.
 
 Common fields use fixed paths defined by PrintTune, for example `printer.nozzle.diameter`,
-`printer.extruder.type`, `printer.hotend.max_temperature`, `firmware.type`, and
+`printer.extruder.type`, `printer.hotend.max-temperature`, `firmware.type`, and
 `slicer.retraction.distance`.
 
-Extensions use `extension.<namespace>.<field>`, such as `extension.klipper.some_field`. Package
-validation must prevent an extension from claiming a core namespace. Alpha does not need a schema
-registry; the first implementation can validate path syntax and recognize only the fields its
-consumers understand.
+Extensions use `extension.<namespace>.<field>`, such as `extension.klipper.some-field`. Future
+package validation must prevent an extension from claiming a Core namespace. The implemented Alpha
+registry recognizes the fixed Core definitions; package-provided extension registration remains
+deferred.
 
 ## Values and units
 
@@ -115,8 +116,8 @@ Units are separate from numeric values. For example, a nozzle claim stores numer
 unitless numbers. Validation rejects a unit on a non-numeric value and rejects a unit incompatible
 with a known field.
 
-The initial closed `CanonicalUnit` set should contain only units needed by implemented fields, drawn
-from the architecture's canonical system, for example `mm`, `mm/s`, `mm/s2`, `degC`, `mm3/s`, and
+The initial closed `CanonicalUnit` set contains only units needed by implemented fields, drawn from
+the architecture's canonical system, for example `mm`, `mm/s`, `mm/s2`, `degC`, `mm3/s`, and
 `ratio`. Machine codes use ASCII (`degC`, `mm/s2`) while the UI may render `°C`, `mm/s²`, and
 `mm³/s`. Values are converted to canonical units before a claim is recorded; the original source
 text or source unit belongs in an import snapshot when preservation is required.
@@ -215,9 +216,9 @@ mutation of any claim.
 Alpha uses a discriminated union so a non-resolved result cannot accidentally carry a usable value:
 
 ```ts
-type ResolutionStatus = "resolved" | "conflict" | "missing" | "blocked";
+type ResolvedFieldStatus = "resolved" | "conflict" | "missing" | "blocked";
 
-type ResolutionReasonCode =
+type ResolvedFieldReasonCode =
   | "single_claim"
   | "claims_agree"
   | "stronger_evidence"
@@ -229,7 +230,8 @@ type ResolutionReasonCode =
   | "insufficient_confirmation"
   | "unresolved_conflict"
   | "incompatible_claim_representations"
-  | "invalid_claim_evidence";
+  | "invalid_claim_evidence"
+  | "unknown_field_definition";
 
 interface ResolvedFieldBase {
   readonly target: FieldClaimTarget;
@@ -325,8 +327,9 @@ The generic resolver applies these deterministic rules in order:
 6. Disregard conflicting weak claims when stronger usable evidence exists and return
    `stronger_evidence`.
 7. Recency may select a newer claim only when disagreeing claims have the same exact trust, source
-   type, source lineage, and target, and the field policy permits replacement semantics. Use
-   `newer_same_source`.
+   type, source lineage, and target, the field policy permits replacement semantics, and the latest
+   actual timestamp has one agreed value. Claim ID orders evidence but is never temporal evidence.
+   Use `newer_same_source`.
 8. Apply an explicit field-specific policy if one exists.
 9. Otherwise return `conflict` / `unresolved_conflict` with every materially conflicting claim ID.
 
@@ -367,10 +370,13 @@ same canonical field.
 
 `supportingClaimIds` is deduplicated and ordered by `createdAt`, then claim ID:
 
-- For `resolved`, it includes all claims materially agreeing with or compared to produce the chosen
-  result, including a prior same-lineage claim when recency selects its successor and all reliable
-  bounds considered by a safety policy.
-- For `conflict`, it includes every usable claim in the unresolved disagreement.
+- For `resolved`, it includes claims materially supporting the chosen value, including all agreeing
+  confirmations at the latest timestamp and all reliable bounds considered by a safety policy. Stale
+  confirmations that disagree with a selected strictly newer value are not presented as support for
+  that value.
+- For `conflict`, it includes every claim materially involved in the unresolved disagreement. An
+  equal-latest-time confirmation conflict includes all conflicting Claims at that latest time; stale
+  earlier confirmations do not become current conflict support.
 - For `blocked`, it includes every claim causing the integrity, compatibility, confirmation, or
   safety block.
 - For `missing`, it is empty.
@@ -379,11 +385,11 @@ Claims for another target or field path are outside the request and are not supp
 
 ### Resolution policy boundary
 
-Canonical field semantics and future policy lookup are defined in
+Canonical field semantics and policy lookup are defined in
 [`field-definition-registry.md`](field-definition-registry.md). The registry remains outside the
 generic resolver.
 
-The later architecture has three layers:
+The implemented Alpha resolution architecture has three layers:
 
 ```text
 FieldClaims
@@ -395,8 +401,8 @@ FieldClaims
 The generic resolver owns validation, exact-context filtering, agreement, trust grouping, weak-only
 blocking, representation compatibility, deterministic ordering, and fallback conflict reporting.
 
-A field policy owns semantics that cannot be inferred from a scalar value. The minimal policy
-vocabulary to evaluate for implementation is:
+A field policy owns semantics that cannot be inferred from a scalar value. The implemented closed
+Alpha policy vocabulary is:
 
 - `exact_match`: disagreement remains a conflict;
 - `installed_hardware_confirmation`: direct current user confirmation of installed hardware may
@@ -404,10 +410,9 @@ vocabulary to evaluate for implementation is:
 - `safety_upper_bound`: choose the lowest reliable upper bound;
 - `safety_lower_bound`: choose the highest reliable lower bound.
 
-This is a closed named policy kind plus validated declarative parameters, not an arbitrary callback.
-Alpha does not yet define a registry or policy contract. Core-owned safety assignments must not be
-weakened by a KnowledgePackage. Future packages may contain declarative policy data only; they never
-execute code.
+This is a closed named policy kind, not an arbitrary callback. The Core-owned registry and policy
+contract are implemented, and Core-owned safety assignments cannot be weakened by a
+KnowledgePackage. Future packages may contain declarative policy data only; they never execute code.
 
 A normal policy selection uses `field_policy_selected`; a conservative safety bound uses
 `safety_conservative_bound`. If a safety policy lacks enough reliable, compatible evidence or cannot
@@ -417,9 +422,8 @@ that condition caused the block.
 
 ### Safety-sensitive fields
 
-Safety meaning must be explicit. The generic resolver must never infer from a number whether lower
-or higher is safer. A later vetted mapping marks a canonical path as an upper bound, lower bound, or
-exact-match safety field.
+Safety meaning is explicit. The generic resolver never infers from a number whether lower or higher
+is safer. The vetted Core FieldDefinition registry assigns each known path its named policy.
 
 For a safety upper bound, reliable compatible claims of 300 `degC` and 260 `degC` resolve to 260
 `degC` with `safety_conservative_bound`. Both claim IDs remain supporting evidence. Recency cannot
@@ -448,11 +452,10 @@ into `resolved`, override a safety policy, change trust, or invent a missing tec
 
 | Scenario                                                                                          | Alpha outcome                                                                                                                                                                                                            |
 | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Package says nozzle is 0.4 `mm`; user confirms installed nozzle is 0.6 `mm`                       | With `installed_hardware_confirmation`, `resolved` at 0.6 `mm`, `field_policy_selected`; both claim IDs support the explanation.                                                                                         |
+| Package says nozzle is 0.4 `mm`; user confirms installed nozzle is 0.6 `mm`                       | With `installed_hardware_confirmation`, `resolved` at 0.6 `mm`, `field_policy_selected`; the direct confirmation supports the selected value while the conflicting package Claim remains historical evidence.            |
 | Package says nozzle is 0.4 `mm`; user says “I think 0.6 mm”                                       | `resolved` at 0.4 `mm` with `stronger_evidence` when the package claim is verified; the uncertain claim remains evidence. With no reliable package evidence, weak-only input is `blocked` / `insufficient_confirmation`. |
 | Imported configuration says 0.6 `mm`; user confirms 0.6 `mm`                                      | `resolved` at 0.6 `mm`, `claims_agree`; both IDs support the result despite differing provenance and trust.                                                                                                              |
 | Reliable component source says maximum 300 `degC`; reliable printer/hotend source says 260 `degC` | Under `safety_upper_bound`, `resolved` at 260 `degC`, `safety_conservative_bound`; both IDs are retained.                                                                                                                |
-| One claim is numeric 0.6 `mm`; another stores string `"0.6"`                                      | `blocked` / `incompatible_claim_representations`; neither representation is coerced.                                                                                                                                     |
 | Two equally strong current sources from different lineages disagree                               | `conflict` / `unresolved_conflict`; neither silently wins.                                                                                                                                                               |
 
 ## Historical and audit behavior

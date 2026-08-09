@@ -68,9 +68,10 @@ calls the existing resolver.
 The registry performs no parsing, coercion, tolerance, or unit conversion. Imported values must be
 converted to the canonical representation before a valid claim is created.
 
-Representation mismatch against a known definition should produce `blocked` with
-`invalid_claim_evidence`, rather than a normal value conflict. A conflict means comparable claims
-disagree; a definition mismatch means evidence does not conform to the field semantics.
+Representation mismatch against a known definition produces `blocked` with
+`incompatible_claim_representations`, rather than a normal value conflict. A conflict means
+comparable claims disagree; a definition mismatch means evidence does not conform to the field
+semantics.
 
 ## Resolution policy assignment
 
@@ -88,7 +89,7 @@ Policy assignment requires an explicit semantic decision. For example, nozzle di
 currently installed hardware, so direct confirmation may override a catalog default. `firmware.type`
 has no comparable override or bound meaning and uses `exact_match`.
 
-`printer.extruder.type` is assigned `installed_hardware_confirmation` in the proposed initial set
+`printer.extruder.type` is assigned `installed_hardware_confirmation` in the initial Core set
 because it describes the currently installed extruder classification. If product requirements later
 mean catalog identity rather than installed configuration, that must become a distinct field path;
 the meaning of this path must not be silently changed.
@@ -138,9 +139,9 @@ Before composition, future package loading must validate that:
 - it cannot override or weaken Core-owned safety semantics.
 
 Package-provided registration is deferred until KnowledgePackage loading and version ownership are
-implemented. Alpha's first registry should contain Core definitions only. A package cannot establish
-new authoritative safety semantics merely by labeling an extension as a safety bound; such fields
-remain blocked until the safety meaning is reviewed and made Core-authoritative.
+implemented. Alpha's registry contains Core definitions only. A package cannot establish new
+authoritative safety semantics merely by labeling an extension as a safety bound; such fields remain
+blocked until the safety meaning is reviewed and made Core-authoritative.
 
 ## Unknown field paths
 
@@ -152,18 +153,17 @@ Registry-aware technical resolution does not fall back to generic `exact_match`,
 does not prove that PrintTune understands the target, type, unit, or safety meaning. It returns a
 blocked unknown-field outcome and retains the Claims unchanged.
 
-The current closed ResolvedField reason set has no precise unknown-definition code. Before registry
-orchestration is implemented, the contract should add the explicit reason code
-`unknown_field_definition`; reusing `invalid_claim_evidence` would incorrectly describe valid claims
-whose semantics are unavailable. This is a concrete follow-up requirement, not an implemented
-contract change in this design task.
+The closed ResolvedField reason set includes `unknown_field_definition`. FieldResolutionService
+returns this blocked outcome for a syntactically valid path that has no available definition;
+reusing `invalid_claim_evidence` would incorrectly describe valid Claims whose semantics are
+unavailable.
 
 When the missing package definition later becomes available, on-demand resolution can run again. The
 original claims remain auditable throughout.
 
 ## Read-only lookup API
 
-The minimal future Core API is a read-only lookup:
+The Core registry exposes simple read-only lookup and deterministic listing functions equivalent to:
 
 ```ts
 interface FieldDefinitionRegistry {
@@ -171,14 +171,13 @@ interface FieldDefinitionRegistry {
 }
 ```
 
-The initial Core implementation may instead expose a pure `getFieldDefinition(fieldPath)` function
-over one frozen map. Neither form needs mutation methods, dependency injection, persistence, or a
-generic schema engine. Enumeration can be added only when a concrete consumer needs it.
+The implementation uses `findCoreFieldDefinition(fieldPath)` and `listCoreFieldDefinitions()` over
+one immutable registry. It has no mutation methods, persistence, or generic schema engine.
 
 ## Resolver orchestration
 
-Registry-aware resolution belongs in a thin application/Core orchestration service around the
-existing pure resolver:
+Registry-aware resolution is implemented by the thin application-layer FieldResolutionService around
+the existing pure resolver:
 
 ```text
 FieldClaimRepository
@@ -202,7 +201,7 @@ from a path. This keeps the resolver pure and permits direct deterministic tests
 
 ## Initial Alpha Core fields
 
-The first registry should prove scalar, unit, target, installed-hardware, exact-match, and safety
+The initial registry proves scalar, unit, target, installed-hardware, exact-match, and safety
 behavior without attempting to catalog every printer setting.
 
 | fieldPath                          | target                   | type     | unit    | policy                            | technical meaning                                   |

@@ -27,6 +27,9 @@ Principles
 - Preserve history: never overwrite prior `PrinterState`s; append new states for hardware changes.
 - Create every persisted `Printer` atomically with exactly one initial `PrinterState`; normal
   application creation must not persist a Printer by itself.
+- Alpha does not yet persist or select an explicit current `PrinterState`. The initial state is
+  unambiguous at creation; current-state selection and transition semantics remain deferred until
+  state-changing workflows are introduced.
 - Claim-first: store raw `FieldClaim`s; compute `ResolvedField`s deterministically and
   conservatively.
 - Traceability: all `Recommendation`s and `DiagnosticResult`s reference the evidence and package

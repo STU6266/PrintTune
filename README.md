@@ -29,7 +29,8 @@ Technology direction (Alpha)
 
 - Electron + React + TypeScript (UI)
 - Vite for local dev
-- SQLite + Drizzle ORM for storage
+- Built-in Node `node:sqlite` behind repository abstractions for storage; raw SQLite access remains
+  inside the storage package
 - JSON Schema + Ajv and Zod for validation
 - Ollama via AIProvider abstraction (local AI)
 - SQLite FTS5 for local knowledge search

@@ -127,16 +127,16 @@ particular states.
 ComponentInstallation must not become a bag of technical properties.
 
 - `ComponentDefinition` contains stable catalog identity and classification. Package-supplied
-  technical assertions should later become sourced claims rather than unqualified contract fields.
+  technical assertions are represented as sourced claims rather than unqualified contract fields.
 - `ComponentInstallation` contains only state membership, physical-instance continuity, role, and
   the minimum identity snapshot.
-- `FieldClaim` will represent sourced assertions or observations, scoped to the relevant
-  PrinterState or ComponentInstallation.
-- `ResolvedField` will represent the value selected from claims by explicit resolution rules.
+- `FieldClaim` represents sourced assertions or observations, scoped to the relevant PrinterState or
+  ComponentInstallation.
+- `ResolvedField` represents the value selected from claims by explicit resolution rules.
 
 Examples:
 
-| Fact                       | Later representation                                                              |
+| Fact                       | Representation                                                                    |
 | -------------------------- | --------------------------------------------------------------------------------- |
 | Nozzle diameter            | Installation-scoped FieldClaim; resolved for that PrinterState                    |
 | Hotend maximum temperature | Definition/package-sourced FieldClaim, not copied blindly onto every installation |
@@ -169,8 +169,9 @@ are sufficient for the next implementation tasks.
 This model supports known and unknown components, repeated component kinds, customer packages, and
 immutable history without tying stored printer records to package availability. It adds only the
 physical-instance continuity needed to distinguish “same component in a later state” from “new
-replacement component.” It does not yet define component facts, package loading, persistence, or
-resolution behavior.
+replacement component.” Package loading remains deferred. Component facts use FieldClaims and
+deterministic resolution; local persistence is limited to ComponentInstallation snapshots as
+described below.
 
 ## Alpha persistence boundary
 
