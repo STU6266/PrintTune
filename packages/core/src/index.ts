@@ -21,3 +21,17 @@ export {
   createPrinterState,
   type CreatePrinterStateInput,
 } from "./printer-state.js";
+export {
+  InvalidComponentDefinitionIdError,
+  InvalidComponentDefinitionReferenceError,
+  InvalidComponentDisplayNameError,
+  InvalidComponentInstallationIdError,
+  InvalidComponentInstanceIdError,
+  InvalidComponentKindError,
+  InvalidComponentPrinterStateIdError,
+  InvalidComponentRoleError,
+  createComponentDefinition,
+  createComponentInstallation,
+  type CreateComponentDefinitionInput,
+  type CreateComponentInstallationInput,
+} from "./component.js";
