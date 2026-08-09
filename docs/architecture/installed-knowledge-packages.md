@@ -33,9 +33,10 @@ digest of the exact original UTF-8 `.ptpack` text. SHA-256 is sufficient for loc
 corruption detection at this boundary. It is not a signature, proof of authorship, publisher
 identity, or source of trust.
 
-An incoming package with an existing key and a different digest fails explicitly with an error such
-as `immutable_package_collision`. It is never overwritten, merged, or selected by file timestamp.
-Different content requires a different `packageVersion`.
+An incoming package with an existing key and either different exact raw text or a different digest
+fails explicitly with an error such as `immutable_package_collision`. Equality is never inferred
+from the caller-supplied digest alone. The record is not overwritten, merged, or selected by file
+timestamp. Different content requires a different `packageVersion`.
 
 ## Raw content storage
 
@@ -122,9 +123,10 @@ insert leaves all previously installed versions unchanged.
 
 Installation outcomes are deterministic:
 
-- same key, digest, source, and trust: idempotent success/no-op; preserve the original
-  `installedAt`;
-- same key with a different digest: fail with `immutable_package_collision`;
+- same key, exact raw text, digest, format/type, source, and trust: idempotent success/no-op;
+  preserve the original `installedAt`;
+- same key with different raw text, digest, format, or type: fail with
+  `immutable_package_collision`, including when raw text differs but the supplied digest matches;
 - same key and digest but different source or trust: fail with an explicit local-metadata conflict;
   reinstall is not a hidden trust-change or escalation operation.
 

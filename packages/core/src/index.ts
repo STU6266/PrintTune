@@ -89,3 +89,10 @@ export {
   type CreatePrinterKnowledgeIdentityInput,
 } from "./printer-knowledge-identity.js";
 export { isStrictIsoUtcTimestamp } from "./timestamp-validation.js";
+export {
+  InvalidInstalledKnowledgePackageError,
+  InvalidKnowledgePackageSourceTrustPairError,
+  createInstalledKnowledgePackage,
+  validateInstalledKnowledgePackageIdentity,
+  type InstalledKnowledgePackageField,
+} from "./installed-knowledge-package.js";

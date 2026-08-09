@@ -68,3 +68,14 @@ export {
   type PrinterKnowledgeIdentityLifecyclePersistence,
 } from "./printer-knowledge-identity-lifecycle-persistence.js";
 export { SqlitePrinterKnowledgeIdentityLifecyclePersistence } from "./sqlite-printer-knowledge-identity-lifecycle-persistence.js";
+export {
+  ImmutableKnowledgePackageCollisionError,
+  InstalledKnowledgePackageMetadataConflictError,
+  type InstalledKnowledgePackageAcceptanceResult,
+  type InstalledKnowledgePackageRepository,
+} from "./installed-knowledge-package-repository.js";
+export { InMemoryInstalledKnowledgePackageRepository } from "./in-memory-installed-knowledge-package-repository.js";
+export {
+  InstalledKnowledgePackageDataIntegrityError,
+  SqliteInstalledKnowledgePackageRepository,
+} from "./sqlite-installed-knowledge-package-repository.js";

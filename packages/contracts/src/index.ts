@@ -53,3 +53,8 @@ export type {
   PrinterSeriesKnowledgePackageV1,
   PrinterSeriesKnowledgePackagePayloadV1,
 } from "./knowledge-package-v1.js";
+export type {
+  InstalledKnowledgePackage,
+  KnowledgePackageInstallationSource,
+  PackageKnowledgeTrust,
+} from "./installed-knowledge-package.js";

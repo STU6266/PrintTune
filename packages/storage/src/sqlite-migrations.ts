@@ -291,6 +291,41 @@ const migration006: SqliteMigration = {
   },
 };
 
+const migration007: SqliteMigration = {
+  version: 7,
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE installed_knowledge_packages (
+        package_id TEXT NOT NULL
+          CHECK (length(package_id) > 0 AND trim(package_id) = package_id),
+        package_version TEXT NOT NULL
+          CHECK (length(package_version) > 0 AND trim(package_version) = package_version),
+        format_version INTEGER NOT NULL CHECK (format_version = 1),
+        package_type TEXT NOT NULL CHECK (package_type = 'printer_series'),
+        raw_text TEXT NOT NULL CHECK (length(raw_text) > 0),
+        content_sha256 TEXT NOT NULL CHECK (
+          length(content_sha256) = 64
+          AND content_sha256 NOT GLOB '*[^0-9a-f]*'
+        ),
+        installation_source TEXT NOT NULL CHECK (
+          installation_source IN ('bundled_official', 'customer_verified_installation')
+        ),
+        trust TEXT NOT NULL CHECK (trust IN ('developer_verified', 'customer_verified')),
+        installed_at TEXT NOT NULL,
+        PRIMARY KEY (package_id, package_version),
+        CHECK (
+          (installation_source = 'bundled_official' AND trust = 'developer_verified')
+          OR
+          (
+            installation_source = 'customer_verified_installation'
+            AND trust = 'customer_verified'
+          )
+        )
+      ) STRICT
+    `);
+  },
+};
+
 export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   migration001,
   migration002,
@@ -298,6 +333,7 @@ export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.fr
   migration004,
   migration005,
   migration006,
+  migration007,
 ]);
 
 export function readSchemaVersion(database: DatabaseSync): number {
