@@ -197,10 +197,15 @@ firmware, or other current configuration data.
 ## Eventual persistence recommendation
 
 When implemented, use one dedicated append-only `printer_knowledge_identities` table and one
-nullable current-record reference on `printers`. This is smaller and clearer than generic metadata,
-putting package columns directly on every PrinterState, or deriving current identity from history.
-Persistence must enforce that the selected record belongs to the same Printer, and changing the
-pointer plus appending a correction must be atomic.
+optional current-record relation for each Printer. This is smaller and clearer than generic
+metadata, putting package columns directly on every PrinterState, or deriving current identity from
+history. Persistence must enforce that the selected record belongs to the same Printer, and changing
+the pointer plus appending a correction must be atomic.
+
+SQLite represents that optional domain pointer through a dedicated
+`printer_knowledge_identity_selections` relation rather than a literal column on `printers`. Its
+composite foreign key includes both Printer and identity IDs, so the database itself rejects an
+identity owned by another Printer while still permitting no selection or one selection per Printer.
 
 No package definitions need to be copied into the application database. Definitions remain in the
 versioned package store; only the exact reference, minimal labels, selection kind, and selection

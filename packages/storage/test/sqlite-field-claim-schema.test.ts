@@ -146,10 +146,10 @@ function openMigratedDatabase(): DatabaseSync {
 }
 
 describe("SQLite FieldClaim schema", () => {
-  it("creates the exact STRICT table at schema version 4", () => {
+  it("creates the exact STRICT FieldClaim table in the current schema", () => {
     const database = openMigratedDatabase();
     try {
-      expect(readSchemaVersion(database)).toBe(4);
+      expect(readSchemaVersion(database)).toBe(5);
       expect(database.prepare("PRAGMA table_info(field_claims)").all()).toEqual([
         expect.objectContaining({ name: "id", type: "TEXT", notnull: 1, pk: 1 }),
         expect.objectContaining({ name: "printer_state_id", type: "TEXT", notnull: 0, pk: 0 }),
@@ -207,7 +207,7 @@ describe("SQLite FieldClaim schema", () => {
       runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS.slice(0, 3));
       seedHierarchy(database);
 
-      runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS);
+      runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS.slice(0, 4));
 
       expect(readSchemaVersion(database)).toBe(4);
       expect(database.prepare("SELECT id FROM workspaces").all()).toEqual([{ id: "workspace-a" }]);
@@ -524,7 +524,7 @@ describe("SQLite FieldClaim schema", () => {
       try {
         runSqliteMigrations(second, PRINTTUNE_SQLITE_MIGRATIONS);
         runSqliteMigrations(second, PRINTTUNE_SQLITE_MIGRATIONS);
-        expect(readSchemaVersion(second)).toBe(4);
+        expect(readSchemaVersion(second)).toBe(5);
         expect(second.prepare("SELECT id FROM field_claims").all()).toEqual([{ id: "claim-a" }]);
       } finally {
         second.close();

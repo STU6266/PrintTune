@@ -203,11 +203,82 @@ const migration004: SqliteMigration = {
   },
 };
 
+const migration005: SqliteMigration = {
+  version: 5,
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE printer_knowledge_identities (
+        id TEXT PRIMARY KEY,
+        printer_id TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('known', 'unclassified')),
+        selected_at TEXT NOT NULL,
+        definition_package_id TEXT,
+        definition_package_version TEXT,
+        series_definition_id TEXT,
+        model_definition_id TEXT,
+        manufacturer_display_name TEXT,
+        series_display_name TEXT,
+        model_display_name TEXT,
+        FOREIGN KEY (printer_id) REFERENCES printers(id) ON DELETE CASCADE,
+        UNIQUE (printer_id, id),
+        CHECK (
+          (
+            kind = 'known'
+            AND definition_package_id IS NOT NULL
+            AND length(trim(definition_package_id)) > 0
+            AND definition_package_version IS NOT NULL
+            AND length(trim(definition_package_version)) > 0
+            AND series_definition_id IS NOT NULL
+            AND length(trim(series_definition_id)) > 0
+            AND manufacturer_display_name IS NOT NULL
+            AND length(trim(manufacturer_display_name)) > 0
+            AND series_display_name IS NOT NULL
+            AND length(trim(series_display_name)) > 0
+            AND (
+              (model_definition_id IS NULL AND model_display_name IS NULL)
+              OR
+              (
+                model_definition_id IS NOT NULL
+                AND length(trim(model_definition_id)) > 0
+                AND model_display_name IS NOT NULL
+                AND length(trim(model_display_name)) > 0
+              )
+            )
+          )
+          OR
+          (
+            kind = 'unclassified'
+            AND definition_package_id IS NULL
+            AND definition_package_version IS NULL
+            AND series_definition_id IS NULL
+            AND model_definition_id IS NULL
+            AND manufacturer_display_name IS NULL
+            AND series_display_name IS NULL
+            AND model_display_name IS NULL
+          )
+        )
+      ) STRICT;
+
+      CREATE INDEX printer_knowledge_identities_printer_history_idx
+        ON printer_knowledge_identities(printer_id, selected_at, id);
+
+      CREATE TABLE printer_knowledge_identity_selections (
+        printer_id TEXT PRIMARY KEY,
+        identity_id TEXT NOT NULL,
+        FOREIGN KEY (printer_id) REFERENCES printers(id) ON DELETE CASCADE,
+        FOREIGN KEY (printer_id, identity_id)
+          REFERENCES printer_knowledge_identities(printer_id, id) ON DELETE CASCADE
+      ) STRICT;
+    `);
+  },
+};
+
 export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   migration001,
   migration002,
   migration003,
   migration004,
+  migration005,
 ]);
 
 export function readSchemaVersion(database: DatabaseSync): number {
