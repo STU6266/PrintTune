@@ -91,7 +91,14 @@ importers:
 
   packages/integrations: {}
 
-  packages/knowledge-engine: {}
+  packages/knowledge-engine:
+    dependencies:
+      "@printtune/contracts":
+        specifier: workspace:*
+        version: link:../contracts
+      "@printtune/core":
+        specifier: workspace:*
+        version: link:../core
 
   packages/package-engine:
     dependencies:
