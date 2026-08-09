@@ -38,3 +38,9 @@ export {
   ComponentInstallationDataIntegrityError,
   SqliteComponentInstallationRepository,
 } from "./sqlite-component-installation-repository.js";
+export { InMemoryFieldClaimRepository } from "./in-memory-field-claim-repository.js";
+export { DuplicateFieldClaimError, type FieldClaimRepository } from "./field-claim-repository.js";
+export {
+  FieldClaimDataIntegrityError,
+  SqliteFieldClaimRepository,
+} from "./sqlite-field-claim-repository.js";
