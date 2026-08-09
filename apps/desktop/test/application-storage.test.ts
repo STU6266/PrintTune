@@ -87,6 +87,7 @@ describe("application storage lifecycle", () => {
       createFieldClaimRepository: vi.fn(),
       createPrinterKnowledgeIdentityRepository: vi.fn(),
       createPrinterKnowledgeIdentitySelectionPersistence: vi.fn(),
+      createPrinterKnowledgeIdentityLifecyclePersistence: vi.fn(),
       close,
     };
     let storage: ReturnType<typeof initializeApplicationStorage> | undefined;

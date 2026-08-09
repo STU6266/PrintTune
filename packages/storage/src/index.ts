@@ -63,3 +63,8 @@ export {
   PrinterKnowledgeIdentitySelectionDataIntegrityError,
   SqlitePrinterKnowledgeIdentitySelectionPersistence,
 } from "./sqlite-printer-knowledge-identity-selection-persistence.js";
+export {
+  InMemoryPrinterKnowledgeIdentityLifecyclePersistence,
+  type PrinterKnowledgeIdentityLifecyclePersistence,
+} from "./printer-knowledge-identity-lifecycle-persistence.js";
+export { SqlitePrinterKnowledgeIdentityLifecyclePersistence } from "./sqlite-printer-knowledge-identity-lifecycle-persistence.js";

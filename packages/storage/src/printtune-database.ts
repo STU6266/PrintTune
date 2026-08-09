@@ -14,6 +14,7 @@ import { SqliteComponentInstallationRepository } from "./sqlite-component-instal
 import { SqliteFieldClaimRepository } from "./sqlite-field-claim-repository.js";
 import { SqlitePrinterKnowledgeIdentityRepository } from "./sqlite-printer-knowledge-identity-repository.js";
 import { SqlitePrinterKnowledgeIdentitySelectionPersistence } from "./sqlite-printer-knowledge-identity-selection-persistence.js";
+import { SqlitePrinterKnowledgeIdentityLifecyclePersistence } from "./sqlite-printer-knowledge-identity-lifecycle-persistence.js";
 
 export interface PrintTuneDatabase {
   migrate(): void;
@@ -26,6 +27,7 @@ export interface PrintTuneDatabase {
   createFieldClaimRepository(): SqliteFieldClaimRepository;
   createPrinterKnowledgeIdentityRepository(): SqlitePrinterKnowledgeIdentityRepository;
   createPrinterKnowledgeIdentitySelectionPersistence(): SqlitePrinterKnowledgeIdentitySelectionPersistence;
+  createPrinterKnowledgeIdentityLifecyclePersistence(): SqlitePrinterKnowledgeIdentityLifecyclePersistence;
   close(): void;
 }
 
@@ -74,6 +76,10 @@ class PrintTuneSqliteDatabase implements PrintTuneDatabase {
 
   createPrinterKnowledgeIdentitySelectionPersistence(): SqlitePrinterKnowledgeIdentitySelectionPersistence {
     return new SqlitePrinterKnowledgeIdentitySelectionPersistence(this.#database);
+  }
+
+  createPrinterKnowledgeIdentityLifecyclePersistence(): SqlitePrinterKnowledgeIdentityLifecyclePersistence {
+    return new SqlitePrinterKnowledgeIdentityLifecyclePersistence(this.#database);
   }
 
   close(): void {

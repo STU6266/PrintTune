@@ -207,6 +207,10 @@ SQLite represents that optional domain pointer through a dedicated
 composite foreign key includes both Printer and identity IDs, so the database itself rejects an
 identity owned by another Printer while still permitting no selection or one selection per Printer.
 
+Creating an immutable identity and selecting it as current is implemented as one atomic lifecycle
+operation. Application correction flows use that boundary instead of composing repository creation
+and selection as two independent writes.
+
 No package definitions need to be copied into the application database. Definitions remain in the
 versioned package store; only the exact reference, minimal labels, selection kind, and selection
 time are local.
