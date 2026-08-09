@@ -135,6 +135,11 @@ re-evaluate local source/trust state, but it needs its own authorization and aud
 change never rewrites existing Claims: they retain the trust assigned at creation. Only later Claim
 applications may use newly established current trust.
 
+The implemented Main-layer installer parses the candidate, validates complete Core compatibility,
+maps the privileged installation source to its fixed trust, hashes the exact raw UTF-8 text with
+Node SHA-256, and calls repository acceptance once. Installation only makes content available; it
+does not select an identity, create Claims, or otherwise apply the package.
+
 ## Durable source adapter and defensive reads
 
 A future `InstalledKnowledgePackageSource` implements the existing narrow exact-lookup contract:
@@ -154,6 +159,10 @@ The adapter returns stored text, not an already parsed package. The existing app
 and structurally/semantically validates that text again, and the materializer repeats Core
 compatibility checks. This defense detects corrupted or incompatible stored content while keeping
 package-engine contracts out of generic storage row reconstruction.
+
+The implemented `InstalledKnowledgePackageSource` recomputes SHA-256 on every exact repository hit,
+rejects identity or digest inconsistencies as integrity failures, and returns the stored trust
+unchanged. Missing exact versions remain distinct and return `undefined`.
 
 Repository reconstruction validates local metadata without silently repairing it. It rejects empty
 or non-normalized package identity values, unsupported format/type/source/trust values,

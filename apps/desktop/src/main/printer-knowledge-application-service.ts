@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { PrinterKnowledgeIdentity, PrinterState } from "@printtune/contracts";
-import {
-  materializePrinterSeriesPackageClaims,
-  type PackageKnowledgeTrust,
-} from "@printtune/knowledge-engine";
+import { materializePrinterSeriesPackageClaims } from "@printtune/knowledge-engine";
 import { parseKnowledgePackageV1 } from "@printtune/package-engine";
 import type {
   FieldClaimRepository,
@@ -15,24 +12,9 @@ import type {
 } from "@printtune/storage";
 
 import type { ActiveWorkspaceSession } from "./active-workspace-session";
+import type { KnowledgePackageSource } from "./knowledge-package-source";
 import { CurrentPrinterKnowledgeIdentityNotFoundError } from "./printer-knowledge-identity-application-service";
 import { NoActiveWorkspaceError, PrinterNotFoundError } from "./printer-flow-application-service";
-
-export interface ExactKnowledgePackageReference {
-  readonly packageId: string;
-  readonly packageVersion: string;
-}
-
-export interface AvailableKnowledgePackage {
-  readonly text: string;
-  readonly trust: PackageKnowledgeTrust;
-}
-
-export interface KnowledgePackageSource {
-  getExactPackage(
-    reference: ExactKnowledgePackageReference
-  ): Promise<AvailableKnowledgePackage | undefined>;
-}
 
 export interface ApplyCurrentKnowledgeToPrinterStateInput {
   readonly printerId: string;

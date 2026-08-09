@@ -25,10 +25,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ActiveWorkspaceSession } from "../src/main/active-workspace-session";
 import { FieldResolutionService } from "../src/main/field-resolution-service";
-import {
-  PrinterKnowledgeApplicationService,
-  type KnowledgePackageSource,
-} from "../src/main/printer-knowledge-application-service";
+import type { KnowledgePackageSource } from "../src/main/knowledge-package-source";
+import { PrinterKnowledgeApplicationService } from "../src/main/printer-knowledge-application-service";
 import { PrinterNotFoundError } from "../src/main/printer-flow-application-service";
 
 const BASE_TIME = "2026-08-09T10:00:00.000Z";
