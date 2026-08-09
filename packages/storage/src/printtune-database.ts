@@ -10,6 +10,7 @@ import { SqliteWorkspaceRepository } from "./sqlite-workspace-repository.js";
 import { SqlitePrinterRepository } from "./sqlite-printer-repository.js";
 import { SqlitePrinterStateRepository } from "./sqlite-printer-state-repository.js";
 import { SqlitePrinterCreationPersistence } from "./sqlite-printer-creation-persistence.js";
+import { SqliteComponentInstallationRepository } from "./sqlite-component-installation-repository.js";
 
 export interface PrintTuneDatabase {
   migrate(): void;
@@ -18,6 +19,7 @@ export interface PrintTuneDatabase {
   createPrinterRepository(): SqlitePrinterRepository;
   createPrinterStateRepository(): SqlitePrinterStateRepository;
   createPrinterCreationPersistence(): SqlitePrinterCreationPersistence;
+  createComponentInstallationRepository(): SqliteComponentInstallationRepository;
   close(): void;
 }
 
@@ -50,6 +52,10 @@ class PrintTuneSqliteDatabase implements PrintTuneDatabase {
 
   createPrinterCreationPersistence(): SqlitePrinterCreationPersistence {
     return new SqlitePrinterCreationPersistence(this.#database);
+  }
+
+  createComponentInstallationRepository(): SqliteComponentInstallationRepository {
+    return new SqliteComponentInstallationRepository(this.#database);
   }
 
   close(): void {

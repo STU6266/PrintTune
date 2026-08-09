@@ -83,6 +83,7 @@ describe("application storage lifecycle", () => {
       createPrinterRepository: vi.fn(),
       createPrinterStateRepository: vi.fn(),
       createPrinterCreationPersistence: vi.fn(),
+      createComponentInstallationRepository: vi.fn(),
       close,
     };
     let storage: ReturnType<typeof initializeApplicationStorage> | undefined;
