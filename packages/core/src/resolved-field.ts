@@ -110,6 +110,7 @@ const REASON_CODES = new Set<ResolvedFieldReasonCode>([
   "unresolved_conflict",
   "incompatible_claim_representations",
   "invalid_claim_evidence",
+  "unknown_field_definition",
 ]);
 const POLICY_KINDS = new Set<ResolutionPolicyKind>([
   "exact_match",

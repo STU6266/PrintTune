@@ -63,3 +63,16 @@ export {
   type CreateResolvedFieldInput,
 } from "./resolved-field.js";
 export { resolveFieldClaims, type ResolveFieldClaimsInput } from "./field-claim-resolver.js";
+export {
+  InvalidFieldDefinitionPathError,
+  InvalidFieldDefinitionShapeError,
+  InvalidFieldDefinitionTargetTypeError,
+  InvalidFieldDefinitionUnitError,
+  InvalidFieldDefinitionValueTypeError,
+  createFieldDefinition,
+  type CreateFieldDefinitionInput,
+} from "./field-definition.js";
+export {
+  findCoreFieldDefinition,
+  listCoreFieldDefinitions,
+} from "./core-field-definition-registry.js";

@@ -231,6 +231,7 @@ describe("createResolvedField", () => {
     "unresolved_conflict",
     "incompatible_claim_representations",
     "invalid_claim_evidence",
+    "unknown_field_definition",
   ];
 
   it.each(reasonCodes)("accepts reason code %s", (reasonCode) => {

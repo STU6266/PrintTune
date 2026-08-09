@@ -14,7 +14,8 @@ export type ResolvedFieldReasonCode =
   | "insufficient_confirmation"
   | "unresolved_conflict"
   | "incompatible_claim_representations"
-  | "invalid_claim_evidence";
+  | "invalid_claim_evidence"
+  | "unknown_field_definition";
 
 interface ResolvedFieldBase {
   readonly target: FieldClaimTarget;

@@ -25,6 +25,11 @@ export type {
   FieldClaimValue,
 } from "./field-claim.js";
 export type {
+  FieldDefinition,
+  FieldDefinitionTargetType,
+  FieldDefinitionValueType,
+} from "./field-definition.js";
+export type {
   ResolutionPolicy,
   ResolutionPolicyKind,
   ResolvedField,
