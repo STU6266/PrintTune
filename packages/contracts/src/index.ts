@@ -14,3 +14,13 @@ export type {
   ComponentDefinitionReference,
   ComponentInstallation,
 } from "./component.js";
+export type {
+  CanonicalUnit,
+  ClaimProvenance,
+  ClaimSourceReference,
+  ClaimSourceType,
+  ClaimTrust,
+  FieldClaim,
+  FieldClaimTarget,
+  FieldClaimValue,
+} from "./field-claim.js";

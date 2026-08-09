@@ -35,3 +35,16 @@ export {
   type CreateComponentDefinitionInput,
   type CreateComponentInstallationInput,
 } from "./component.js";
+export {
+  InvalidFieldClaimConfidenceError,
+  InvalidFieldClaimIdError,
+  InvalidFieldClaimPathError,
+  InvalidFieldClaimProvenanceError,
+  InvalidFieldClaimTargetError,
+  InvalidFieldClaimTimestampError,
+  InvalidFieldClaimTrustError,
+  InvalidFieldClaimUnitError,
+  InvalidFieldClaimValueError,
+  createFieldClaim,
+  type CreateFieldClaimInput,
+} from "./field-claim.js";

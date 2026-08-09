@@ -89,7 +89,7 @@ can gain named variants. That is an additive extension, not a reason to create a
 these rules:
 
 - use lowercase ASCII segments separated by single dots;
-- each segment begins with a letter and contains only letters, digits, or underscores;
+- each segment begins with a letter and contains lowercase letters, digits, or internal hyphens;
 - use a stable domain prefix such as `printer`, `component`, `firmware`, or `slicer`;
 - describe the fact, not its source, display unit, or current value;
 - never include record IDs, array positions, translated text, or package versions in a path;
