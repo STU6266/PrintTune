@@ -1,29 +1,19 @@
 # Knowledge packages
 
-KnowledgePackages are the primary mechanism to capture printer-specific and domain knowledge.
+KnowledgePackages are PrintTune's mechanism for versioned printer-specific and domain knowledge.
+They are immutable, source-bearing declarative data and never executable application code. Core owns
+canonical field meanings, resolution policies, and safety semantics; packages can contribute
+evidence but cannot redefine those rules.
 
-Characteristics
+The exact initial package envelope, printer-series payload, trust boundary, validation stages, and
+physical `.ptpack` format are defined in [`knowledge-package-v1.md`](knowledge-package-v1.md).
 
-- Declarative data packages (JSON/YAML/archives) containing facts, mappings, detection rules,
-  validation rules, safety rules, questions, instructions, diagnostics, recommendations, workflows,
-  sources, images, and static test models.
-- Must not contain executable application code.
-- Versioned and referenced by `PrinterState` and `TestRun` records for traceability.
+Package references always use stable machine identifiers and an exact version. A physical Printer's
+optional series/model selection and local display snapshot follow
+[`printer-knowledge-identity.md`](printer-knowledge-identity.md). Component catalog identity and
+historical installation snapshots follow
+[`component-identity-model.md`](component-identity-model.md). Package facts later become immutable,
+provenance-bearing FieldClaims rather than mutable properties on either identity model.
 
-Organization
-
-- Namespaced by logical group, e.g. `printer-series.creality.ender-3-classic`.
-- A series package may contain multiple models and revisions; split a package when technically
-  needed.
-- A physical Printer's optional, version-exact series/model selection and local identity snapshot
-  follow [`printer-knowledge-identity.md`](printer-knowledge-identity.md); package facts remain
-  sourced claims rather than current-hardware identity.
-
-Localization
-
-- KnowledgePackages may include localized text; UI-facing localization is used at runtime.
-
-Validation and signing
-
-- Packages should include metadata (version, checksum, source). The Core validates package schemas
-  before use.
+Distribution, installation storage, signature verification, dependencies, rules, assets, package
+derived claims, and real manufacturer content remain separate future work.
