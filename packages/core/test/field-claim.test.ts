@@ -273,14 +273,23 @@ describe("createFieldClaim", () => {
     }
   );
 
-  it.each(["2026-08-09T08:30:00+00:00", "2026-02-30T08:30:00Z", "not-a-date"])(
-    "rejects invalid UTC timestamp %s",
-    (timestamp) => {
-      expect(() => createFieldClaim(validInput({ timestamp }))).toThrow(
-        InvalidFieldClaimTimestampError
-      );
-    }
-  );
+  it.each([
+    "2026-08-09T08:30:00+00:00",
+    "2026-02-30T08:30:00Z",
+    "2026-04-31T08:30:00Z",
+    "2025-02-29T08:30:00Z",
+    "not-a-date",
+  ])("rejects invalid UTC timestamp %s", (timestamp) => {
+    expect(() => createFieldClaim(validInput({ timestamp }))).toThrow(
+      InvalidFieldClaimTimestampError
+    );
+  });
+
+  it("accepts a valid leap-day timestamp", () => {
+    expect(createFieldClaim(validInput({ timestamp: "2024-02-29T08:30:00Z" })).createdAt).toBe(
+      "2024-02-29T08:30:00Z"
+    );
+  });
 
   it("allows conflicting claims to coexist without resolving them", () => {
     const packageClaim = createFieldClaim(validInput({ id: "package-claim" }));

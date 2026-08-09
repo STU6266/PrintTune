@@ -74,6 +74,34 @@ describe("Printer", () => {
     }
   );
 
+  it.each(["2026-08-08T10:00:00Z", "2024-02-29T10:00:00.12Z"])(
+    "accepts valid calendar timestamp %s",
+    (timestamp) => {
+      expect(
+        createPrinter({
+          id: PRINTER_ID,
+          workspaceId: WORKSPACE_ID,
+          name: "Drucker",
+          timestamp,
+        }).createdAt
+      ).toBe(timestamp);
+    }
+  );
+
+  it.each(["2026-02-30T10:00:00Z", "2026-04-31T10:00:00Z", "2025-02-29T10:00:00Z"])(
+    "rejects invalid calendar timestamp without normalization: %s",
+    (timestamp) => {
+      expect(() =>
+        createPrinter({
+          id: PRINTER_ID,
+          workspaceId: WORKSPACE_ID,
+          name: "Drucker",
+          timestamp,
+        })
+      ).toThrow(InvalidPrinterTimestampError);
+    }
+  );
+
   it("renames to a trimmed name without mutating the original Printer", () => {
     const printer = createPrinter({
       id: PRINTER_ID,

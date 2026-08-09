@@ -30,6 +30,23 @@ describeWorkspaceRepository("SqliteWorkspaceRepository", () => {
 });
 
 describe("SqliteWorkspaceRepository persistence and integrity", () => {
+  it("reconstructs a leap-day timestamp accepted by Core", () => {
+    const workspace = createWorkspace({
+      id: "workspace-leap-day",
+      name: "Leap day",
+      timestamp: "2024-02-29T10:00:00.1Z",
+    });
+
+    expect(
+      parseWorkspaceRow({
+        id: workspace.id,
+        name: workspace.name,
+        created_at: workspace.createdAt,
+        updated_at: workspace.updatedAt,
+      })
+    ).toEqual(workspace);
+  });
+
   it("persists a Workspace after close and reopen", async () => {
     const { directory, path } = createTemporaryDatabase();
     const savedWorkspace = createWorkspace({

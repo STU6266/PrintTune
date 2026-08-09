@@ -47,6 +47,24 @@ describe("Workspace", () => {
     ).toThrow(InvalidWorkspaceTimestampError);
   });
 
+  it.each(["2026-08-08T10:00:00Z", "2024-02-29T10:00:00.1Z"])(
+    "accepts valid calendar timestamp %s",
+    (timestamp) => {
+      expect(createWorkspace({ id: WORKSPACE_ID, name: "Werkstatt", timestamp }).createdAt).toBe(
+        timestamp
+      );
+    }
+  );
+
+  it.each(["2026-02-30T10:00:00Z", "2026-04-31T10:00:00Z", "2025-02-29T10:00:00Z"])(
+    "rejects invalid calendar timestamp without normalization: %s",
+    (timestamp) => {
+      expect(() => createWorkspace({ id: WORKSPACE_ID, name: "Werkstatt", timestamp })).toThrow(
+        InvalidWorkspaceTimestampError
+      );
+    }
+  );
+
   it.each(["", " ", "\t\n"])("rejects an empty name: %j", (name) => {
     expect(() => createWorkspace({ id: WORKSPACE_ID, name, timestamp: CREATED_AT })).toThrow(
       InvalidWorkspaceNameError

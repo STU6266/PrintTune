@@ -1,5 +1,7 @@
 import type { Workspace } from "@printtune/contracts";
 
+import { isStrictIsoUtcTimestamp } from "./timestamp-validation.js";
+
 export interface CreateWorkspaceInput {
   readonly id: string;
   readonly name: string;
@@ -22,10 +24,8 @@ export class InvalidWorkspaceTimestampError extends Error {
   }
 }
 
-const ISO_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
-
 function validateWorkspaceTimestamp(timestamp: string): string {
-  if (!ISO_UTC_TIMESTAMP_PATTERN.test(timestamp) || Number.isNaN(Date.parse(timestamp))) {
+  if (!isStrictIsoUtcTimestamp(timestamp)) {
     throw new InvalidWorkspaceTimestampError();
   }
 

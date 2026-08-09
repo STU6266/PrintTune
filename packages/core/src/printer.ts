@@ -1,5 +1,7 @@
 import type { Printer } from "@printtune/contracts";
 
+import { isStrictIsoUtcTimestamp } from "./timestamp-validation.js";
+
 export interface CreatePrinterInput {
   readonly id: string;
   readonly workspaceId: string;
@@ -39,8 +41,6 @@ export class InvalidPrinterTimestampError extends Error {
   }
 }
 
-const ISO_UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
-
 function validateId(id: string): string {
   if (id.length === 0 || id.trim() !== id) {
     throw new InvalidPrinterIdError();
@@ -68,7 +68,7 @@ function normalizeName(name: string): string {
 }
 
 function validateTimestamp(timestamp: string): string {
-  if (!ISO_UTC_TIMESTAMP_PATTERN.test(timestamp) || Number.isNaN(Date.parse(timestamp))) {
+  if (!isStrictIsoUtcTimestamp(timestamp)) {
     throw new InvalidPrinterTimestampError();
   }
 

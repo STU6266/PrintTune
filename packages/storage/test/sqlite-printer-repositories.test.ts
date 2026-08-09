@@ -79,6 +79,25 @@ describePrinterStateRepository("SqlitePrinterStateRepository", async () => {
 });
 
 describe("SQLite Printer repository persistence and integrity", () => {
+  it("reconstructs a leap-day timestamp accepted by Core", () => {
+    const printer = createPrinter({
+      id: "printer-leap-day",
+      workspaceId: "workspace-a",
+      name: "Leap day",
+      timestamp: "2024-02-29T10:00:00.12Z",
+    });
+
+    expect(
+      parsePrinterRow({
+        id: printer.id,
+        workspace_id: printer.workspaceId,
+        name: printer.name,
+        created_at: printer.createdAt,
+        updated_at: printer.updatedAt,
+      })
+    ).toEqual(printer);
+  });
+
   it("persists Printer and PrinterState records across close and reopen", async () => {
     const { directory, path } = temporaryDatabase();
     const printer = createPrinter({

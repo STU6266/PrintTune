@@ -71,14 +71,26 @@ describe("PrinterState", () => {
     ).toThrow(InvalidPrinterStateTimestampError);
   });
 
-  it.each(["2026-02-29T10:00:00Z", "2026-04-31T10:00:00Z", "2026-13-01T10:00:00Z"])(
-    "rejects an invalid calendar timestamp: %j",
-    (timestamp) => {
-      expect(() => createPrinterState({ id: STATE_ID, printerId: PRINTER_ID, timestamp })).toThrow(
-        InvalidPrinterStateTimestampError
-      );
-    }
-  );
+  it.each([
+    "2026-02-30T10:00:00Z",
+    "2026-04-31T10:00:00Z",
+    "2025-02-29T10:00:00Z",
+    "2026-13-01T10:00:00Z",
+  ])("rejects an invalid calendar timestamp: %j", (timestamp) => {
+    expect(() => createPrinterState({ id: STATE_ID, printerId: PRINTER_ID, timestamp })).toThrow(
+      InvalidPrinterStateTimestampError
+    );
+  });
+
+  it("accepts a valid leap-day timestamp", () => {
+    expect(
+      createPrinterState({
+        id: STATE_ID,
+        printerId: PRINTER_ID,
+        timestamp: "2024-02-29T10:00:00Z",
+      }).createdAt
+    ).toBe("2024-02-29T10:00:00Z");
+  });
 
   it("returns a frozen value without modifying its input", () => {
     const input = { id: STATE_ID, printerId: PRINTER_ID, timestamp: CREATED_AT };
