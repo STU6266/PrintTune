@@ -11,8 +11,8 @@ retains the supporting claim IDs and an explicit status instead of overwriting c
 claims. This separation lets PrintTune preserve provenance, uncertainty, and history while still
 providing a usable value when the evidence permits one.
 
-This document defines the data shape and semantics only. It does not define resolution algorithms,
-safety rules, persistence, or package loading.
+This document defines the data shape and deterministic Alpha resolution semantics only. It does not
+implement a resolver, safety engine, persistence, or package loading.
 
 ## FieldClaim
 
@@ -204,56 +204,252 @@ than sorting claims by a single trust score. For example, a current firmware obs
 developer-verified product limit answer different questions even if both concern temperature.
 Confidence must never promote unverified evidence into a verified trust category.
 
-## Conflicts and resolution
+## ResolvedField and deterministic resolution
 
-Saving a new claim never replaces a prior claim for the same target and path. If a package claims a
-nozzle diameter of 0.4 mm and the user later confirms a 0.6 mm replacement, both records remain. The
-hardware change should normally also create a new PrinterState and corresponding installation
-context. When claims genuinely conflict within the same context, resolution records the conflict
-rather than deleting either source.
+Saving a new claim never replaces a prior claim for the same target and path. A `ResolvedField` is
+PrintTune's current derived interpretation of those claims. It is neither historical evidence nor a
+mutation of any claim.
 
-The minimal eventual resolved-value model is:
+### Minimal Alpha contract
+
+Alpha uses a discriminated union so a non-resolved result cannot accidentally carry a usable value:
 
 ```ts
 type ResolutionStatus = "resolved" | "conflict" | "missing" | "blocked";
 
-interface ResolvedField {
+type ResolutionReasonCode =
+  | "single_claim"
+  | "claims_agree"
+  | "stronger_evidence"
+  | "newer_same_source"
+  | "field_policy_selected"
+  | "safety_conservative_bound"
+  | "safety_policy_blocked"
+  | "no_usable_claims"
+  | "insufficient_confirmation"
+  | "unresolved_conflict"
+  | "incompatible_claim_representations"
+  | "invalid_claim_evidence";
+
+interface ResolvedFieldBase {
   readonly target: FieldClaimTarget;
   readonly fieldPath: string;
-  readonly status: ResolutionStatus;
-  readonly value?: FieldClaimValue;
-  readonly unit?: CanonicalUnit;
   readonly supportingClaimIds: readonly string[];
-  readonly reason: string;
-  readonly resolvedAt: string;
+  readonly reasonCode: ResolutionReasonCode;
 }
+
+type ResolvedField =
+  | (ResolvedFieldBase & {
+      readonly status: "resolved";
+      readonly value: FieldClaimValue;
+      readonly unit?: CanonicalUnit;
+    })
+  | (ResolvedFieldBase & {
+      readonly status: "conflict" | "missing" | "blocked";
+    });
 ```
 
-The first implementation should enforce status-specific invariants: `resolved` has exactly one
-usable value; `conflict`, `missing`, and `blocked` do not present a normal usable value. Unit rules
-match FieldClaim. `supportingClaimIds` contains every claim that materially supports the result or
-conflict and is empty only when evidence is missing. `reason` is a stable machine-readable reason
-code, not localized prose. `resolvedAt` records when this interpretation was computed.
+The statuses mean:
 
-There is no independent `id` in the minimal model because target plus field path identifies the
-current derived interpretation. Persisted resolution history, algorithm/package version, expiry, and
-manual overrides are deferred until their lifecycle is defined. A ResolvedField is derived data;
-FieldClaims remain the auditable source of truth.
+- `resolved`: deterministic rules produced one usable typed value and unit.
+- `missing`: no valid, usable claim exists for the exact target and field path.
+- `conflict`: valid usable claims disagree, and neither generic mechanics nor the field policy may
+  choose safely.
+- `blocked`: evidence exists, but an integrity, representation, confirmation, or safety condition
+  prohibits use of a value.
 
-Resolution rules themselves are deliberately not specified here. They must be deterministic,
-field-aware, and capable of reporting missing, conflicting, or blocked results.
+`target` and `fieldPath` identify the interpretation; a separate ID is unnecessary. `resolvedAt` is
+also omitted in Alpha. Resolution is calculated on demand, and adding a clock value would not help
+reproduce the result. If results are cached later, cache metadata can record computation time and
+resolver version without changing the semantic value.
 
-## Safety conflicts
+`reasonCode` is closed and machine-readable, not localized prose. The UI or AI may translate it and
+the supporting evidence into a German explanation, but that explanation is not the source of truth.
 
-Normal resolution may prefer evidence that is more specific, current, or appropriately verified.
-Safety-related fields have a stricter rule: when reliable sources disagree, PrintTune must not
-select the less conservative value merely because it appears newer or has a nominally higher trust
-category.
+### Claim eligibility
 
-For example, reliable maximum-hotend-temperature claims of 300 °C and 260 °C must not casually
-produce a usable 300 °C limit. A later safety engine must use the safest reliable bound or block the
-operation when field semantics do not define a safe bound. The conflict and all supporting claim IDs
-remain visible. This document does not implement or enumerate safety fields or rules.
+Resolution operates on claims for one exact target and one exact canonical field path:
+
+1. Every claim must pass the existing FieldClaim validation and storage-integrity boundary.
+2. Its target must exactly equal the requested discriminated target, including the ID.
+3. Its `fieldPath` must exactly equal the requested path. Related-looking paths are not aliases.
+4. Alpha has no superseded, inactive, revoked, or validity-period mechanism. The resolver must not
+   invent one or silently discard old claims as if one existed.
+5. Weak claims remain eligible evidence but are not authoritative by themselves.
+
+A malformed claim must not be skipped while resolution continues with a plausible subset. The result
+is `blocked` with `invalid_claim_evidence`, or the repository fails with its explicit data-integrity
+error before resolution. This prevents corrupt evidence from being hidden by a seemingly valid
+result.
+
+### Trust groups, provenance, and confidence
+
+Alpha uses explicit categories, not a universal score:
+
+- **Strong verified evidence:** `developer_verified`, `customer_verified`, `user_confirmed`.
+- **Observed evidence:** `imported_observation`.
+- **Weak or unverified evidence:** `user_entered`, `ai_generated_unverified`.
+
+These groups describe eligibility for generic decisions, not a total ordering within a group.
+`developer_verified` does not universally beat `user_confirmed`; a verified catalog default and a
+direct observation of installed hardware have different semantics.
+
+Provenance identifies the source and exact lineage. Trust describes verification. Confidence is an
+optional estimate. Confidence does not change a trust group, break a conflict, or establish a value
+when confirmation is required. Alpha defines no confidence threshold.
+
+Weak claims cannot override strong or observed disagreement. If weak evidence is the only evidence,
+the result is `blocked` with `insufficient_confirmation`. If a strong or observed claim resolves and
+weak claims agree exactly, those agreeing weak claims may support it. Disagreeing weak claims remain
+auditable but do not force a conflict against otherwise usable stronger evidence; the result uses
+`stronger_evidence`.
+
+### Agreement, disagreement, and recency
+
+Claims agree only when their value discriminator, scalar value, and canonical unit are exactly
+equal. One usable claim resolves with `single_claim`; multiple agreeing claims resolve with
+`claims_agree`. Differing provenance, trust, confidence, or creation time does not prevent exact
+agreement, and every materially agreeing claim ID is retained. Strings use exact code-point
+equality, booleans must match, and numbers use exact canonical stored values; Alpha adds no numeric
+tolerance.
+
+The generic resolver applies these deterministic rules in order:
+
+1. Validate the complete input set and exact context.
+2. With no claims, return `missing` / `no_usable_claims`.
+3. With only weak claims, return `blocked` / `insufficient_confirmation`.
+4. Reject incompatible value types or unit representations as `blocked` /
+   `incompatible_claim_representations`.
+5. If all usable strong and observed claims agree, return their value and include agreeing weak
+   claims as support.
+6. Disregard conflicting weak claims when stronger usable evidence exists and return
+   `stronger_evidence`.
+7. Recency may select a newer claim only when disagreeing claims have the same exact trust, source
+   type, source lineage, and target, and the field policy permits replacement semantics. Use
+   `newer_same_source`.
+8. Apply an explicit field-specific policy if one exists.
+9. Otherwise return `conflict` / `unresolved_conflict` with every materially conflicting claim ID.
+
+“Same source lineage” is narrow. User confirmations in the single-user Alpha share one lineage.
+Package claims share a lineage only when package ID matches; versions may advance. Imported, slicer,
+firmware, component-definition, and test sources use their structured references to determine
+lineage. Different sources sharing a trust category are not one lineage. Equal timestamps with
+different values cannot be ordered and remain a conflict.
+
+This gives the required recency behavior:
+
+- Old `user_confirmed` 0.4 and newer `user_confirmed` 0.6 resolve to 0.6 with `newer_same_source`
+  when the field permits replacement semantics.
+- New `user_entered` 0.6 cannot replace old `user_confirmed` 0.4; the result is 0.4 with
+  `stronger_evidence`.
+- Package default 0.4 and direct confirmation of installed 0.6 require a field policy, which may
+  choose 0.6 with `field_policy_selected`.
+- Equally trusted current claims from different lineages, or equally timed claims in one lineage,
+  remain `conflict` / `unresolved_conflict`.
+
+No claim is deleted or marked obsolete by these choices.
+
+### Type and unit compatibility
+
+Claims for one canonical field must have the same value discriminator and unit semantics:
+
+- number `mm` and number `mm` are compatible;
+- number `mm` and number `degC` are incompatible;
+- number and string are incompatible even if the string looks numeric;
+- a unit and no unit are incompatible when either claim assigns a unit to that field.
+
+Alpha performs no parsing, coercion, tolerance, or unit conversion. Incompatible representations
+produce `blocked` / `incompatible_claim_representations` with all involved claim IDs. This is
+`blocked`, rather than `conflict`, because the values cannot safely be compared as assertions of the
+same canonical field.
+
+### Supporting claims
+
+`supportingClaimIds` is deduplicated and ordered by `createdAt`, then claim ID:
+
+- For `resolved`, it includes all claims materially agreeing with or compared to produce the chosen
+  result, including a prior same-lineage claim when recency selects its successor and all reliable
+  bounds considered by a safety policy.
+- For `conflict`, it includes every usable claim in the unresolved disagreement.
+- For `blocked`, it includes every claim causing the integrity, compatibility, confirmation, or
+  safety block.
+- For `missing`, it is empty.
+
+Claims for another target or field path are outside the request and are not supporting claims.
+
+### Resolution policy boundary
+
+The later architecture has three layers:
+
+```text
+FieldClaims
+    -> generic Claim Resolver
+    -> named field-specific ResolutionPolicy when required
+    -> ResolvedField
+```
+
+The generic resolver owns validation, exact-context filtering, agreement, trust grouping, weak-only
+blocking, representation compatibility, deterministic ordering, and fallback conflict reporting.
+
+A field policy owns semantics that cannot be inferred from a scalar value. The minimal policy
+vocabulary to evaluate for implementation is:
+
+- `exact_match`: disagreement remains a conflict;
+- `installed_hardware_confirmation`: direct current user confirmation of installed hardware may
+  override a generic catalog/package default;
+- `safety_upper_bound`: choose the lowest reliable upper bound;
+- `safety_lower_bound`: choose the highest reliable lower bound.
+
+This is a closed named policy kind plus validated declarative parameters, not an arbitrary callback.
+Alpha does not yet define a registry or policy contract. Core-owned safety assignments must not be
+weakened by a KnowledgePackage. Future packages may contain declarative policy data only; they never
+execute code.
+
+A normal policy selection uses `field_policy_selected`; a conservative safety bound uses
+`safety_conservative_bound`. If a safety policy lacks enough reliable, compatible evidence or cannot
+establish its conservative direction, it returns `blocked` / `safety_policy_blocked` rather than
+guessing. A more specific integrity, representation, or confirmation reason takes precedence when
+that condition caused the block.
+
+### Safety-sensitive fields
+
+Safety meaning must be explicit. The generic resolver must never infer from a number whether lower
+or higher is safer. A later vetted mapping marks a canonical path as an upper bound, lower bound, or
+exact-match safety field.
+
+For a safety upper bound, reliable compatible claims of 300 `degC` and 260 `degC` resolve to 260
+`degC` with `safety_conservative_bound`. Both claim IDs remain supporting evidence. Recency cannot
+select 300. A lower-bound policy uses the opposite direction. Non-bound safety conflicts remain
+blocked or conflicting according to their explicit policy; they are never optimized by a generic
+minimum/maximum rule.
+
+### Recalculation and persistence
+
+Alpha calculates ResolvedField on demand. It adds no ResolvedField table or repository. Resolution
+reruns after a relevant claim is created, an applicable policy or package version changes, or the
+application resolver version changes.
+
+The same claims and policy inputs produce the same semantic result. An in-memory cache may be used,
+but it is disposable and must be invalidated for those events. Persisted derived results, if later
+justified, need resolver and policy-version metadata and remain rebuildable; they never become
+evidence equivalent to Claims.
+
+### AI boundary
+
+AI may explain a resolved value, describe a conflict or block, and ask for missing confirmation. AI
+may not choose a winning claim outside deterministic resolver rules, turn `conflict` or `blocked`
+into `resolved`, override a safety policy, change trust, or invent a missing technical value.
+
+### Worked Alpha examples
+
+| Scenario                                                                                          | Alpha outcome                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Package says nozzle is 0.4 `mm`; user confirms installed nozzle is 0.6 `mm`                       | With `installed_hardware_confirmation`, `resolved` at 0.6 `mm`, `field_policy_selected`; both claim IDs support the explanation.                                                                                         |
+| Package says nozzle is 0.4 `mm`; user says “I think 0.6 mm”                                       | `resolved` at 0.4 `mm` with `stronger_evidence` when the package claim is verified; the uncertain claim remains evidence. With no reliable package evidence, weak-only input is `blocked` / `insufficient_confirmation`. |
+| Imported configuration says 0.6 `mm`; user confirms 0.6 `mm`                                      | `resolved` at 0.6 `mm`, `claims_agree`; both IDs support the result despite differing provenance and trust.                                                                                                              |
+| Reliable component source says maximum 300 `degC`; reliable printer/hotend source says 260 `degC` | Under `safety_upper_bound`, `resolved` at 260 `degC`, `safety_conservative_bound`; both IDs are retained.                                                                                                                |
+| One claim is numeric 0.6 `mm`; another stores string `"0.6"`                                      | `blocked` / `incompatible_claim_representations`; neither representation is coerced.                                                                                                                                     |
+| Two equally strong current sources from different lineages disagree                               | `conflict` / `unresolved_conflict`; neither silently wins.                                                                                                                                                               |
 
 ## Historical and audit behavior
 
@@ -295,8 +491,8 @@ Do not add these to the initial FieldClaim or ResolvedField contracts:
 - universal priority scores, derived trust scores, confidence explanations, or per-claim resolution
   weights;
 - localized reason text, notes, tags, comments, or UI presentation metadata;
-- resolution algorithm versions, persisted resolution history, manual override objects, or cache
-  invalidation metadata;
+- `resolvedAt`, resolution algorithm versions, persisted resolution history, manual override
+  objects, or cache invalidation metadata;
 - safety classifications, safe-bound direction, safety-engine decisions, or automatic actions;
 - package loading data, TestRun payloads, evidence blobs, recommendations, or diagnostic results.
 
