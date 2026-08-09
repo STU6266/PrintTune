@@ -64,7 +64,7 @@ describe("SQLite ComponentInstallation schema", () => {
       seedState(database);
       expect(readSchemaVersion(database)).toBe(2);
 
-      runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS);
+      runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS.slice(0, 3));
 
       expect(readSchemaVersion(database)).toBe(3);
       expect(database.prepare("SELECT id FROM workspaces").all()).toEqual([{ id: "workspace-a" }]);
@@ -340,7 +340,7 @@ describe("SQLite ComponentInstallation schema", () => {
       try {
         runSqliteMigrations(second, PRINTTUNE_SQLITE_MIGRATIONS);
         runSqliteMigrations(second, PRINTTUNE_SQLITE_MIGRATIONS);
-        expect(readSchemaVersion(second)).toBe(3);
+        expect(readSchemaVersion(second)).toBe(4);
         expect(second.prepare("SELECT id FROM component_installations").all()).toEqual([
           { id: "installation-a" },
         ]);

@@ -83,10 +83,131 @@ const migration003: SqliteMigration = {
   },
 };
 
+const migration004: SqliteMigration = {
+  version: 4,
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE field_claims (
+        id TEXT PRIMARY KEY,
+        printer_state_id TEXT,
+        component_installation_id TEXT,
+        field_path TEXT NOT NULL,
+        value_type TEXT NOT NULL CHECK (value_type IN ('string', 'number', 'boolean')),
+        string_value TEXT,
+        number_value REAL,
+        boolean_value INTEGER,
+        unit TEXT CHECK (unit IN ('mm', 'mm/s', 'mm/s2', 'degC', 'mm3/s', 'ratio')),
+        source_type TEXT NOT NULL CHECK (
+          source_type IN (
+            'user_confirmed',
+            'user_entered',
+            'imported_file',
+            'slicer_profile',
+            'firmware_read',
+            'knowledge_package',
+            'component_definition',
+            'test_result',
+            'ai_unverified'
+          )
+        ),
+        source_reference_id TEXT,
+        source_package_id TEXT,
+        source_package_version TEXT,
+        source_definition_id TEXT,
+        trust TEXT NOT NULL CHECK (
+          trust IN (
+            'developer_verified',
+            'customer_verified',
+            'user_confirmed',
+            'user_entered',
+            'imported_observation',
+            'ai_generated_unverified'
+          )
+        ),
+        confidence REAL CHECK (confidence >= 0 AND confidence <= 1),
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (printer_state_id) REFERENCES printer_states(id) ON DELETE CASCADE,
+        FOREIGN KEY (component_installation_id)
+          REFERENCES component_installations(id) ON DELETE CASCADE,
+        CHECK (
+          (printer_state_id IS NOT NULL AND component_installation_id IS NULL)
+          OR
+          (printer_state_id IS NULL AND component_installation_id IS NOT NULL)
+        ),
+        CHECK (
+          (
+            value_type = 'string'
+            AND string_value IS NOT NULL
+            AND number_value IS NULL
+            AND boolean_value IS NULL
+          )
+          OR
+          (
+            value_type = 'number'
+            AND string_value IS NULL
+            AND number_value IS NOT NULL
+            AND number_value >= -1.7976931348623157e308
+            AND number_value <= 1.7976931348623157e308
+            AND boolean_value IS NULL
+          )
+          OR
+          (
+            value_type = 'boolean'
+            AND string_value IS NULL
+            AND number_value IS NULL
+            AND boolean_value IN (0, 1)
+          )
+        ),
+        CHECK (unit IS NULL OR value_type = 'number'),
+        CHECK (
+          (
+            source_type IN ('user_confirmed', 'user_entered', 'ai_unverified')
+            AND source_reference_id IS NULL
+            AND source_package_id IS NULL
+            AND source_package_version IS NULL
+            AND source_definition_id IS NULL
+          )
+          OR
+          (
+            source_type IN ('imported_file', 'slicer_profile', 'firmware_read', 'test_result')
+            AND source_reference_id IS NOT NULL
+            AND source_package_id IS NULL
+            AND source_package_version IS NULL
+            AND source_definition_id IS NULL
+          )
+          OR
+          (
+            source_type = 'knowledge_package'
+            AND source_reference_id IS NULL
+            AND source_package_id IS NOT NULL
+            AND source_package_version IS NOT NULL
+            AND source_definition_id IS NULL
+          )
+          OR
+          (
+            source_type = 'component_definition'
+            AND source_reference_id IS NULL
+            AND source_package_id IS NOT NULL
+            AND source_package_version IS NOT NULL
+            AND source_definition_id IS NOT NULL
+          )
+        )
+      ) STRICT;
+
+      CREATE INDEX field_claims_printer_state_field_path_idx
+        ON field_claims(printer_state_id, field_path);
+
+      CREATE INDEX field_claims_component_installation_field_path_idx
+        ON field_claims(component_installation_id, field_path);
+    `);
+  },
+};
+
 export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   migration001,
   migration002,
   migration003,
+  migration004,
 ]);
 
 export function readSchemaVersion(database: DatabaseSync): number {
