@@ -148,15 +148,123 @@ describe("installed_hardware_confirmation", () => {
     });
   });
 
-  it("uses Claim ID deterministically for equal-timestamp confirmations", () => {
+  it("keeps disagreeing equal-timestamp confirmations as a deterministic conflict", () => {
+    const first = userConfirmed("confirmation-b", 0.4);
+    const second = userConfirmed("confirmation-a", 0.6);
+    const expected = {
+      status: "conflict",
+      reasonCode: "unresolved_conflict",
+      supportingClaimIds: ["confirmation-a", "confirmation-b"],
+    };
+
+    expect(resolve([first, second], policy)).toMatchObject(expected);
+    expect(resolve([second, first], policy)).toMatchObject(expected);
+  });
+
+  it("treats equivalent timestamp spellings as the same instant", () => {
     expect(
-      resolve([userConfirmed("confirmation-a", 0.4), userConfirmed("confirmation-b", 0.6)], policy)
+      resolve(
+        [
+          userConfirmed("confirmation-a", 0.4, "2026-08-08T10:00:00.0Z"),
+          userConfirmed("confirmation-b", 0.6, "2026-08-08T10:00:00.000Z"),
+        ],
+        policy
+      )
+    ).toMatchObject({
+      status: "conflict",
+      reasonCode: "unresolved_conflict",
+      supportingClaimIds: ["confirmation-a", "confirmation-b"],
+    });
+  });
+
+  it("treats equal-timestamp confirmations with the same value as normal agreement", () => {
+    expect(
+      resolve([userConfirmed("confirmation-b", 0.6), userConfirmed("confirmation-a", 0.6)], policy)
+    ).toMatchObject({
+      status: "resolved",
+      value: { type: "number", value: 0.6 },
+      reasonCode: "claims_agree",
+      supportingClaimIds: ["confirmation-a", "confirmation-b"],
+    });
+  });
+
+  it("conflicts when the latest timestamp contains contradictory confirmations", () => {
+    expect(
+      resolve(
+        [
+          userConfirmed("old", 0.4, EARLY),
+          userConfirmed("latest-b", 0.6, LATE),
+          userConfirmed("latest-a", 0.8, LATE),
+        ],
+        policy
+      )
+    ).toMatchObject({
+      status: "conflict",
+      reasonCode: "unresolved_conflict",
+      supportingClaimIds: ["latest-a", "latest-b"],
+    });
+  });
+
+  it("uses an agreeing latest group to replace an older confirmation", () => {
+    expect(
+      resolve(
+        [
+          userConfirmed("old", 0.4, EARLY),
+          userConfirmed("latest-b", 0.6, LATE),
+          userConfirmed("latest-a", 0.6, LATE),
+        ],
+        policy
+      )
     ).toMatchObject({
       status: "resolved",
       value: { type: "number", value: 0.6 },
       reasonCode: "newer_same_source",
-      supportingClaimIds: ["confirmation-b"],
+      supportingClaimIds: ["latest-a", "latest-b"],
     });
+  });
+
+  it("does not fall back to a package when latest confirmations conflict", () => {
+    expect(
+      resolve(
+        [
+          claim("package", { value: { type: "number", value: 0.4 } }),
+          userConfirmed("confirmation-a", 0.6, LATE),
+          userConfirmed("confirmation-b", 0.8, LATE),
+        ],
+        policy
+      )
+    ).toMatchObject({
+      status: "conflict",
+      reasonCode: "unresolved_conflict",
+      supportingClaimIds: ["confirmation-a", "confirmation-b"],
+    });
+  });
+
+  it("keeps a strictly newer confirmation authoritative over a package default", () => {
+    expect(
+      resolve(
+        [
+          claim("package", { value: { type: "number", value: 0.4 } }),
+          userConfirmed("old", 0.6, EARLY),
+          userConfirmed("new", 0.8, LATE),
+        ],
+        policy
+      )
+    ).toMatchObject({
+      status: "resolved",
+      value: { type: "number", value: 0.8 },
+      reasonCode: "newer_same_source",
+      supportingClaimIds: ["new"],
+    });
+  });
+
+  it("does not mutate confirmations while resolving their recency", () => {
+    const confirmations = [userConfirmed("latest", 0.6, LATE), userConfirmed("old", 0.4, EARLY)];
+    const before = [...confirmations];
+
+    resolve(confirmations, policy);
+
+    expect(confirmations).toEqual(before);
   });
 
   it("keeps unrelated strong non-catalog disagreement as conflict", () => {

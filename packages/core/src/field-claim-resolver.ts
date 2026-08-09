@@ -211,11 +211,16 @@ function installedHardwareConfirmation(
   ) {
     return blocked(target, fieldPath, confirmations, "incompatible_claim_representations");
   }
-  const confirmationsDisagree = confirmations.some((claim) => !sameValue(firstConfirmation, claim));
-  const selected = confirmationsDisagree
-    ? confirmations[confirmations.length - 1]
-    : firstConfirmation;
+  const latestTimestamp = Date.parse(confirmations[confirmations.length - 1]?.createdAt ?? "");
+  const latestConfirmations = confirmations.filter(
+    (confirmation) => Date.parse(confirmation.createdAt) === latestTimestamp
+  );
+  const selected = latestConfirmations[0];
   if (!selected) return blocked(target, fieldPath, confirmations, "insufficient_confirmation");
+  if (latestConfirmations.some((confirmation) => !sameValue(selected, confirmation))) {
+    return conflict(target, fieldPath, latestConfirmations);
+  }
+  const confirmationsDisagree = confirmations.some((claim) => !sameValue(selected, claim));
 
   const catalog = claims.filter(isCatalogClaim);
   if (catalog.some((claim) => !sameRepresentation(selected, claim))) {
