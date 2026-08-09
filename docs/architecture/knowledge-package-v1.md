@@ -220,8 +220,11 @@ source reference must be aligned to retain the exact source `factId` in addition
 packageId + packageVersion + factId
 ```
 
-That future FieldClaim contract and persistence change is a prerequisite for package-to-Claim
-generation, but is not part of this design correction. No database representation is selected here.
+The backward-compatible evolution is defined in
+[`field-claims-and-resolution.md`](field-claims-and-resolution.md#knowledge-package-fact-provenance-evolution):
+historical package-level references remain valid with an absent `factId`, while every newly
+generated Package v1 Claim must carry the winning fact's exact `factId`. Contract and persistence
+implementation remain prerequisites for package-to-Claim generation.
 
 Facts do not duplicate `seriesDefinitionId` or `modelDefinitionId`. The globally unique `factId`
 identifies the source inside one immutable package version, while PrinterKnowledgeIdentity

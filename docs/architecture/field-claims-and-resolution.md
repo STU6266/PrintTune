@@ -178,6 +178,105 @@ Customer-specific and official/base packages use the same package reference. Ver
 trust, not to a privileged package-source variant. An exact component definition uses the same
 package ID, package version, and definition ID tuple as `ComponentDefinitionReference`.
 
+### Knowledge-package fact provenance evolution
+
+The implemented `knowledge_package` reference currently contains exactly `type`, `packageId`, and
+`packageVersion`. It records the immutable package version, but not the individual assertion inside
+that package. This differs from `component_definition`: that separate source identifies a component
+definition with `packageId`, `packageVersion`, and `definitionId`. A component definition identity
+must not be reused as baseline-fact provenance.
+
+Knowledge Package v1 gives every fact a stable package-local `factId`, and model selection preserves
+the exact winning fact. The backward-compatible target contract is therefore:
+
+```ts
+{
+  readonly type: "knowledge_package";
+  readonly packageId: string;
+  readonly packageVersion: string;
+  readonly factId?: string;
+}
+```
+
+The two representable states have explicit meanings:
+
+- With no `factId`, the historical Claim is known to originate from the exact package version, but
+  the exact source fact was not recorded.
+- With `factId`, the Claim originates from that exact fact inside that exact package version. Its
+  complete fact identity is `(packageId, packageVersion, factId)`.
+
+Absence of `factId` is honest historical incompleteness, not corruption. Existing Claims must load,
+retain their values and package references, and participate in resolution unchanged. Migration must
+not fabricate a fact ID from an array index, `fieldPath`, `"legacy"`, `"unknown"`, or another
+sentinel.
+
+Three shapes were considered:
+
+1. Making `factId` required on every package reference would make the strongest contract, but an
+   existing persisted Claim has no truthful value with which to satisfy it. Migration would either
+   reject valid history or manufacture precision.
+2. Adding optional `factId` preserves the existing package-level state and permits exact provenance
+   for new facts. A stricter package-to-Claim boundary can still require it for all new Package v1
+   Claims.
+3. Adding a second fact-level package source variant makes the distinction explicit in the
+   discriminator, but duplicates package semantics and complicates resolution lineage, repository
+   mapping, and future callers without adding information beyond presence of `factId`.
+
+Option 2 is the smallest honest, migration-safe model. Generic Core `createFieldClaim()` should
+accept and validate both forms. That keeps historical reconstruction on the normal validated path
+and avoids a privileged unsafe legacy constructor. The future Package-v1-to-Claim service is the
+stronger creation boundary: it must require the package's exact `packageId`, exact `packageVersion`,
+and the effective winning fact's exact `factId`, and must never create incomplete package
+provenance. Low-level historical compatibility does not weaken that application invariant.
+
+### Migration and repository requirements
+
+Migration 006 should add one nullable `TEXT` column, `source_fact_id`, to `field_claims`. Migration
+004's existing provenance CHECK already requires both package columns for `knowledge_package`,
+forbids them for unrelated sources, and distinguishes `source_definition_id`. It does not enumerate
+all allowed columns as a closed row shape, so no existing CHECK must be rewritten. Migration 006 can
+use `ALTER TABLE ... ADD COLUMN` with a column CHECK that permits only either:
+
+- `NULL`; or
+- a non-empty trimmed value when `source_type = 'knowledge_package'`.
+
+This additionally forces `source_fact_id` to `NULL` for `user_confirmed`, `user_entered`,
+`imported_file`, `slicer_profile`, `firmware_read`, `component_definition`, `test_result`, and
+`ai_unverified`. The existing table CHECK continues to require package ID and version together for
+package provenance. The normal migration runner supplies the transaction, version ordering,
+rollback, and schema-version update. Existing rows acquire `NULL`, preserving their exact prior
+meaning; a table rebuild is unnecessary.
+
+After migration, repository reconstruction must map package ID/version plus `NULL` fact ID to valid
+historical package-level provenance, and a populated fact ID to exact fact-level provenance. A
+partial package ID/version remains a data-integrity error. A malformed fact ID or any fact ID on an
+incompatible source type is also a data-integrity error; the repository must neither discard nor
+invent it.
+
+`factId` is audit provenance only. It does not change value agreement, source lineage, trust
+grouping, confidence, recency, ResolutionPolicy, or safety calculations. Two separately auditable
+Claims from different fact IDs may still agree technically when their typed values and units agree.
+Adding a fact ID never promotes package trust.
+
+Package updates append evidence rather than rewriting it. A Claim from package 1.0 fact A and a
+Claim from package 1.1 fact B retain their respective complete identities, even when `factId` is the
+same string across versions. If a selected model fact B overrides series fact A, the generated Claim
+must reference B; it must not reference A, synthesize an identity, or substitute
+`modelDefinitionId`. PrinterKnowledgeIdentity separately records series/model selection. Package
+removal does not invalidate historical Claims: their value, unit, package identity, and recorded
+fact identity remain sufficient for normal historical resolution without the package being present.
+
+Implementation should remain green in two commits:
+
+1. **4.5b:** extend the FieldClaim contract and Core validation to accept optional, validated
+   `factId`, retaining package-level historical construction.
+2. **4.5c:** add migration 006 and update repository writes, reconstruction, integrity checks, and
+   tests for both historical and exact forms.
+
+The temporary state after 4.5b remains coherent because no package-to-Claim generator exists and
+persisted data still uses the older valid subset. Package-to-Claim generation must wait until 4.5c
+is complete.
+
 ## Trust and confidence
 
 The initial trust vocabulary is:
