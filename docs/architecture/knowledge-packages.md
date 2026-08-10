@@ -12,10 +12,10 @@ Package references always use stable machine identifiers and an exact version. A
 optional series/model selection and local display snapshot follow
 [`printer-knowledge-identity.md`](printer-knowledge-identity.md). Component catalog identity and
 historical installation snapshots follow
-[`component-identity-model.md`](component-identity-model.md). Package facts later become immutable,
-provenance-bearing FieldClaims rather than mutable properties on either identity model. Their pure
-conversion boundary and externally established trust requirement are defined in
-[`package-claim-materialization.md`](package-claim-materialization.md).
+[`component-identity-model.md`](component-identity-model.md). When explicitly applied through the
+application flow, package facts become immutable, provenance-bearing FieldClaims rather than mutable
+properties on either identity model. Their pure conversion boundary and externally established trust
+requirement are defined in [`package-claim-materialization.md`](package-claim-materialization.md).
 
 The durable Alpha boundary for exact accepted content, local installation source, and trust is
 implemented as described in [`installed-knowledge-packages.md`](installed-knowledge-packages.md).

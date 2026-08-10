@@ -65,17 +65,17 @@ boundary.
 
 The recommended creation-only Alpha record contains:
 
-| Field                | Purpose                                                                   |
-| -------------------- | ------------------------------------------------------------------------- |
-| `packageId`          | Exact manifest-derived package identity                                   |
-| `packageVersion`     | Exact opaque manifest-derived content version                             |
-| `formatVersion`      | Records the accepted format and supports a closed schema check            |
-| `packageType`        | Records the accepted payload type without duplicating its full manifest   |
-| `rawText`            | Exact accepted UTF-8 JSON text                                            |
-| `contentSha256`      | Lowercase 64-hex digest of the exact UTF-8 bytes                          |
-| `installationSource` | Trusted local account of how the package entered the accepted store       |
-| `trust`              | Approved trust assigned to Claims on future materialization               |
-| `installedAt`        | Caller-supplied strict ISO-8601 UTC time of the original accepted install |
+| Field                | Purpose                                                                          |
+| -------------------- | -------------------------------------------------------------------------------- |
+| `packageId`          | Exact manifest-derived package identity                                          |
+| `packageVersion`     | Exact opaque manifest-derived content version                                    |
+| `formatVersion`      | Records the accepted format and supports a closed schema check                   |
+| `packageType`        | Records the accepted payload type without duplicating its full manifest          |
+| `rawText`            | Exact accepted UTF-8 JSON text                                                   |
+| `contentSha256`      | Lowercase 64-hex digest of the exact UTF-8 bytes                                 |
+| `installationSource` | Trusted local account of how the package entered the accepted store              |
+| `trust`              | Approved local trust returned by the source and persisted on materialized Claims |
+| `installedAt`        | Caller-supplied strict ISO-8601 UTC time of the original accepted install        |
 
 Display name, description, publisher fields, series/model definitions, and facts remain in the
 validated raw manifest and are not duplicated into relational columns. `formatVersion` and
