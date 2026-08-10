@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
 import type {
   PrinterKnowledgeApi,
@@ -31,6 +31,7 @@ interface PrinterKnowledgeSectionViewProps {
   readonly pending: PendingSelection | undefined;
   readonly message: string | undefined;
   readonly error: string | undefined;
+  readonly disclosureButtonRef?: RefObject<HTMLButtonElement | null>;
   readonly onOpen: () => void;
   readonly onCancel: () => void;
   readonly onSelect: (selection: PendingSelection) => void;
@@ -50,7 +51,7 @@ function knownPending(
   };
 }
 
-function hasDisplayCollision(
+function hasSeriesDisplayCollision(
   catalog: PrinterKnowledgeCatalog,
   item: PrinterKnowledgeCatalogItem
 ): boolean {
@@ -59,6 +60,28 @@ function hasDisplayCollision(
       candidate !== item &&
       candidate.manufacturerDisplayName === item.manufacturerDisplayName &&
       candidate.seriesDisplayName === item.seriesDisplayName
+  );
+}
+
+function hasExactDisplayCollision(
+  catalog: PrinterKnowledgeCatalog,
+  item: PrinterKnowledgeCatalogItem
+): boolean {
+  return catalog.items.some(
+    (candidate) =>
+      candidate !== item &&
+      candidate.manufacturerDisplayName === item.manufacturerDisplayName &&
+      candidate.seriesDisplayName === item.seriesDisplayName &&
+      candidate.selection.packageVersion === item.selection.packageVersion
+  );
+}
+
+function hasModelDisplayCollision(
+  item: PrinterKnowledgeCatalogItem,
+  model: PrinterKnowledgeCatalogModel
+): boolean {
+  return item.models.some(
+    (candidate) => candidate !== model && candidate.modelDisplayName === model.modelDisplayName
   );
 }
 
@@ -71,6 +94,7 @@ export function PrinterKnowledgeSectionView({
   pending,
   message,
   error,
+  disclosureButtonRef,
   onOpen,
   onCancel,
   onSelect,
@@ -84,6 +108,10 @@ export function PrinterKnowledgeSectionView({
         <>
           <strong>Noch kein Druckermodell ausgewählt.</strong>
           <p>Durch die Auswahl kann PrintTune bekannte technische Informationen zuordnen.</p>
+          <p>
+            Die Auswahl ist optional. Du kannst technische Angaben weiterhin manuell eintragen; am
+            Drucker selbst wird nichts verändert.
+          </p>
         </>
       ) : null}
       {!isLoading && status?.kind === "unclassified" ? (
@@ -120,12 +148,16 @@ export function PrinterKnowledgeSectionView({
         </>
       ) : null}
       {!isLoading && status ? (
-        <>
-          <p className="knowledge-state">Technischer Zustand: {status.printerState.label}</p>
-          <button type="button" className="knowledge-primary" onClick={onOpen}>
-            {status.kind === "no_selection" ? "Druckermodell auswählen" : "Druckermodell ändern"}
-          </button>
-        </>
+        <button
+          ref={disclosureButtonRef}
+          type="button"
+          className="knowledge-primary"
+          aria-expanded={isOpen}
+          aria-controls="printer-knowledge-selector"
+          onClick={onOpen}
+        >
+          {status.kind === "no_selection" ? "Druckermodell auswählen" : "Druckermodell ändern"}
+        </button>
       ) : null}
       {message ? <p role="status">{message}</p> : null}
       {error ? (
@@ -136,9 +168,8 @@ export function PrinterKnowledgeSectionView({
 
       {isOpen && catalog ? (
         <div
+          id="printer-knowledge-selector"
           className="knowledge-selector"
-          role="dialog"
-          aria-modal="false"
           aria-labelledby="knowledge-selector-title"
         >
           <h3 id="knowledge-selector-title">Druckermodell auswählen</h3>
@@ -153,8 +184,11 @@ export function PrinterKnowledgeSectionView({
               <fieldset key={`${item.selection.packageId}\u0000${item.selection.packageVersion}`}>
                 <legend>{item.manufacturerDisplayName}</legend>
                 <strong>{item.seriesDisplayName}</strong>
-                {hasDisplayCollision(catalog, item) ? (
+                {hasSeriesDisplayCollision(catalog, item) ? (
                   <small>Version {item.selection.packageVersion}</small>
+                ) : null}
+                {hasExactDisplayCollision(catalog, item) ? (
+                  <small>Paket: {item.selection.packageId}</small>
                 ) : null}
                 <button
                   type="button"
@@ -171,6 +205,9 @@ export function PrinterKnowledgeSectionView({
                     onClick={() => onSelect(knownPending(item, model))}
                   >
                     {model.modelDisplayName}
+                    {hasModelDisplayCollision(item, model)
+                      ? ` · ${model.selection.modelDefinitionId}`
+                      : ""}
                   </button>
                 ))}
               </fieldset>
@@ -243,41 +280,69 @@ export function PrinterKnowledgeSection({ printerId }: { readonly printerId: str
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
   const saving = useRef(false);
+  const generation = useRef(0);
+  const pendingPrinterId = useRef<string | undefined>(undefined);
+  const disclosureButton = useRef<HTMLButtonElement>(null);
 
-  async function refresh(): Promise<void> {
+  async function refresh(expectedGeneration: number, targetPrinterId: string): Promise<boolean> {
     const [nextStatus, nextCatalog] = await Promise.all([
-      window.printTune.getPrinterKnowledgeStatus(printerId),
+      window.printTune.getPrinterKnowledgeStatus(targetPrinterId),
       window.printTune.listPrinterKnowledgeCatalog(),
     ]);
+    if (generation.current !== expectedGeneration) return false;
     setStatus(nextStatus);
     setCatalog(nextCatalog);
+    return true;
   }
 
   useEffect(() => {
+    const expectedGeneration = ++generation.current;
+    saving.current = false;
+    setStatus(undefined);
+    setCatalog(undefined);
     setIsLoading(true);
+    setIsOpen(false);
+    setIsSaving(false);
+    setPending(undefined);
+    pendingPrinterId.current = undefined;
+    setMessage(undefined);
     setError(undefined);
-    void refresh()
-      .catch(() => setError("Druckermodell und Wissen konnten nicht geladen werden."))
-      .finally(() => setIsLoading(false));
+    void refresh(expectedGeneration, printerId)
+      .catch(() => {
+        if (generation.current === expectedGeneration)
+          setError("Druckermodell und Wissen konnten nicht geladen werden.");
+      })
+      .finally(() => {
+        if (generation.current === expectedGeneration) setIsLoading(false);
+      });
+    return () => {
+      if (generation.current === expectedGeneration) generation.current += 1;
+    };
   }, [printerId]);
 
   async function confirm(): Promise<void> {
-    if (!pending || saving.current) return;
+    if (!pending || pendingPrinterId.current !== printerId || saving.current) return;
+    const expectedGeneration = generation.current;
+    const targetPrinterId = printerId;
+    const selected = pending;
     saving.current = true;
     setIsSaving(true);
     setError(undefined);
     try {
-      await confirmPrinterKnowledgeSelection(window.printTune, printerId, pending);
-      await refresh();
+      await confirmPrinterKnowledgeSelection(window.printTune, targetPrinterId, selected);
+      if (!(await refresh(expectedGeneration, targetPrinterId))) return;
       setIsOpen(false);
       setPending(undefined);
       setMessage("Druckermodell gespeichert.");
     } catch (caught) {
+      if (generation.current !== expectedGeneration) return;
       setError(printerKnowledgeErrorMessage(caught));
-      await refresh().catch(() => undefined);
+      await refresh(expectedGeneration, targetPrinterId).catch(() => undefined);
     } finally {
-      saving.current = false;
-      setIsSaving(false);
+      if (generation.current === expectedGeneration) {
+        saving.current = false;
+        setIsSaving(false);
+      }
     }
   }
 
@@ -291,6 +356,7 @@ export function PrinterKnowledgeSection({ printerId }: { readonly printerId: str
       pending={pending}
       message={message}
       error={error}
+      disclosureButtonRef={disclosureButton}
       onOpen={() => {
         setIsOpen(true);
         setMessage(undefined);
@@ -298,8 +364,13 @@ export function PrinterKnowledgeSection({ printerId }: { readonly printerId: str
       onCancel={() => {
         setIsOpen(false);
         setPending(undefined);
+        pendingPrinterId.current = undefined;
+        queueMicrotask(() => disclosureButton.current?.focus());
       }}
-      onSelect={setPending}
+      onSelect={(selection) => {
+        pendingPrinterId.current = printerId;
+        setPending(selection);
+      }}
       onConfirm={() => void confirm()}
     />
   );

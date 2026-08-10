@@ -13,13 +13,13 @@ import { DuplicateFieldClaimError, type FieldClaimRepository } from "./field-cla
 
 type SqliteValue = string | number | null;
 
-interface FieldClaimSqliteStatement {
+export interface FieldClaimSqliteStatement {
   run(...values: SqliteValue[]): { readonly changes: number | bigint };
   get(...values: string[]): unknown;
   all(...values: string[]): unknown[];
 }
 
-interface FieldClaimSqliteConnection {
+export interface FieldClaimSqliteConnection {
   readonly isTransaction: boolean;
   exec(sql: string): void;
   prepare(sql: string): FieldClaimSqliteStatement;
@@ -275,14 +275,7 @@ export class SqliteFieldClaimRepository implements FieldClaimRepository {
 
   constructor(database: FieldClaimSqliteConnection) {
     this.#database = database;
-    this.#create = database.prepare(`
-      INSERT INTO field_claims (
-        id, printer_state_id, component_installation_id, field_path,
-        value_type, string_value, number_value, boolean_value, unit,
-        source_type, source_reference_id, source_package_id, source_package_version,
-        source_definition_id, source_fact_id, trust, confidence, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    this.#create = prepareFieldClaimInsert(database);
     this.#find = database.prepare(`SELECT ${SELECT_COLUMNS} FROM field_claims WHERE id = ?`);
     this.#listByState = database.prepare(`
       SELECT ${SELECT_COLUMNS} FROM field_claims
@@ -304,7 +297,7 @@ export class SqliteFieldClaimRepository implements FieldClaimRepository {
 
   async create(claim: FieldClaim): Promise<void> {
     try {
-      this.#insertClaim(claim);
+      insertFieldClaim(this.#create, claim);
     } catch (error) {
       if (this.#find.get(claim.id) !== undefined) {
         throw new DuplicateFieldClaimError(claim.id);
@@ -326,40 +319,12 @@ export class SqliteFieldClaimRepository implements FieldClaimRepository {
 
     this.#database.exec("BEGIN IMMEDIATE");
     try {
-      for (const claim of claims) this.#insertClaim(claim);
+      for (const claim of claims) insertFieldClaim(this.#create, claim);
       this.#database.exec("COMMIT");
     } catch (error) {
       if (this.#database.isTransaction) this.#database.exec("ROLLBACK");
       throw error;
     }
-  }
-
-  #insertClaim(claim: FieldClaim): void {
-    const [printerStateId, componentInstallationId] = targetValues(claim.target);
-    const [stringValue, numberValue, booleanValue] = valueColumns(claim.value);
-    const [referenceId, packageId, packageVersion, definitionId, factId] = provenanceColumns(
-      claim.provenance
-    );
-    this.#create.run(
-      claim.id,
-      printerStateId,
-      componentInstallationId,
-      claim.fieldPath,
-      claim.value.type,
-      stringValue,
-      numberValue,
-      booleanValue,
-      claim.unit ?? null,
-      claim.provenance.sourceType,
-      referenceId,
-      packageId,
-      packageVersion,
-      definitionId,
-      factId,
-      claim.trust,
-      claim.confidence ?? null,
-      claim.createdAt
-    );
   }
 
   async findById(id: string): Promise<FieldClaim | undefined> {
@@ -385,4 +350,45 @@ export class SqliteFieldClaimRepository implements FieldClaimRepository {
         : this.#listByInstallationAndPath.all(target.componentInstallationId, fieldPath);
     return rows.map(parseFieldClaimRow);
   }
+}
+
+export function prepareFieldClaimInsert(
+  database: Pick<FieldClaimSqliteConnection, "prepare">
+): FieldClaimSqliteStatement {
+  return database.prepare(`
+      INSERT INTO field_claims (
+        id, printer_state_id, component_installation_id, field_path,
+        value_type, string_value, number_value, boolean_value, unit,
+        source_type, source_reference_id, source_package_id, source_package_version,
+        source_definition_id, source_fact_id, trust, confidence, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+}
+
+export function insertFieldClaim(statement: FieldClaimSqliteStatement, claim: FieldClaim): void {
+  const [printerStateId, componentInstallationId] = targetValues(claim.target);
+  const [stringValue, numberValue, booleanValue] = valueColumns(claim.value);
+  const [referenceId, packageId, packageVersion, definitionId, factId] = provenanceColumns(
+    claim.provenance
+  );
+  statement.run(
+    claim.id,
+    printerStateId,
+    componentInstallationId,
+    claim.fieldPath,
+    claim.value.type,
+    stringValue,
+    numberValue,
+    booleanValue,
+    claim.unit ?? null,
+    claim.provenance.sourceType,
+    referenceId,
+    packageId,
+    packageVersion,
+    definitionId,
+    factId,
+    claim.trust,
+    claim.confidence ?? null,
+    claim.createdAt
+  );
 }

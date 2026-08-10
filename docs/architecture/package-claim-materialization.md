@@ -139,15 +139,15 @@ introduce localization.
 
 ## Persistence, reapplication, and history
 
-Pure materialization performs no writes. `PrinterKnowledgeApplicationService` persists the complete
-result with one atomic `FieldClaimRepository.createBatch()` call; if any Claim fails, none remains
-stored.
+Pure materialization performs no writes and remains stateless: independent calls can still produce
+fresh Claim batches. The authoritative `PrinterKnowledgeApplicationService` Main path now persists
+the PackageApplication, complete Claim batch, and exact membership through one atomic
+`PackageApplicationLifecyclePersistence.applyOnce()` operation.
 
 The pure function cannot know whether invocation is a retry or a deliberate new historical event. It
-therefore returns a fresh batch for each explicit call. Alpha must not infer idempotency from equal
-values or matching provenance. Before user-facing or automatically retryable reapplication, a future
-PackageApplication/audit record should provide an idempotency key and lifecycle. This is deferred
-instead of approximated with Claim-value heuristics.
+therefore returns a fresh batch for each direct call. Main does not infer idempotency from equal
+values or matching provenance; it uses the durable PackageApplication semantic key and atomic
+apply-once boundary defined in [`package-application.md`](package-application.md).
 
 Versions never float. Claims for identity `P/1.0` can come only from package `P/1.0`. Installing
 `P/1.1` cannot contribute to that identity or rewrite its Claims; applying 1.1 requires an explicit

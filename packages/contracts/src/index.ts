@@ -58,3 +58,4 @@ export type {
   KnowledgePackageInstallationSource,
   PackageKnowledgeTrust,
 } from "./installed-knowledge-package.js";
+export type { PackageApplication, PackageApplicationKey } from "./package-application.js";

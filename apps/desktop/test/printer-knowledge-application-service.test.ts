@@ -3,18 +3,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type {
+  PackageApplication,
   PrinterKnowledgeIdentity,
   PrinterSeriesKnowledgePackageV1,
 } from "@printtune/contracts";
 import {
   createFieldClaim,
+  createPackageApplication,
   createPrinter,
   createPrinterKnowledgeIdentity,
   createPrinterState,
   createWorkspace,
 } from "@printtune/core";
 import {
-  InMemoryFieldClaimRepository,
+  InMemoryPackageApplicationPersistence,
   InMemoryPrinterKnowledgeIdentityLifecyclePersistence,
   InMemoryPrinterRepository,
   InMemoryPrinterStateRepository,
@@ -118,6 +120,7 @@ async function createMemoryFixture(
   options: {
     identity?: PrinterKnowledgeIdentity | null;
     packageText?: string;
+    packageTrust?: "developer_verified" | "customer_verified";
     claimIds?: string[];
     times?: string[];
   } = {}
@@ -126,7 +129,8 @@ async function createMemoryFixture(
   const printers = new InMemoryPrinterRepository();
   const states = new InMemoryPrinterStateRepository();
   const identities = new InMemoryPrinterKnowledgeIdentityLifecyclePersistence();
-  const claims = new InMemoryFieldClaimRepository();
+  const applications = new InMemoryPackageApplicationPersistence();
+  const claims = applications.asFieldClaimRepository();
   const activeWorkspace = new ActiveWorkspaceSession(workspaces);
   await workspaces.save(createWorkspace({ id: "workspace-a", name: "A", timestamp: BASE_TIME }));
   await workspaces.save(createWorkspace({ id: "workspace-b", name: "B", timestamp: BASE_TIME }));
@@ -150,24 +154,29 @@ async function createMemoryFixture(
     reference.packageId === "example.synthetic-series" && reference.packageVersion === "1.0"
       ? {
           text: options.packageText ?? JSON.stringify(syntheticPackage()),
-          trust: "developer_verified",
+          trust: options.packageTrust ?? "developer_verified",
         }
       : undefined
   );
   const packageSource: KnowledgePackageSource = { getExactPackage };
   const claimIds = options.claimIds ?? ["claim-a", "claim-b", "claim-c", "claim-d"];
   const times = options.times ?? [BASE_TIME];
+  const createApplicationId = vi.fn(() => "application-a");
+  const createClaimId = vi.fn(() => claimIds.shift() ?? "claim-unexpected");
+  const now = vi.fn(() => times.shift() ?? BASE_TIME);
   const service = new PrinterKnowledgeApplicationService(
     printers,
     states,
     identities,
     identities,
     packageSource,
-    claims,
+    applications,
+    applications,
     activeWorkspace,
     {
-      createClaimId: () => claimIds.shift() ?? "claim-unexpected",
-      now: () => times.shift() ?? BASE_TIME,
+      createApplicationId,
+      createClaimId,
+      now,
     }
   );
   return {
@@ -176,8 +185,12 @@ async function createMemoryFixture(
     states,
     identities,
     claims,
+    applications,
     activeWorkspace,
     getExactPackage,
+    createApplicationId,
+    createClaimId,
+    now,
     service,
   };
 }
@@ -191,14 +204,11 @@ describe("PrinterKnowledgeApplicationService", () => {
     });
 
     expect(result).toEqual({
+      status: "applied",
       printerId: "printer-a",
       printerStateId: "state-a",
-      packageId: "example.synthetic-series",
-      packageVersion: "1.0",
-      claimIds: ["claim-a", "claim-b", "claim-c"],
     });
     expect(Object.isFrozen(result)).toBe(true);
-    expect(Object.isFrozen(result.claimIds)).toBe(true);
     const claims = await fixture.claims.listByTarget(TARGET);
     expect(claims).toHaveLength(3);
     expect(claims.every((claim) => claim.createdAt === BASE_TIME)).toBe(true);
@@ -224,6 +234,12 @@ describe("PrinterKnowledgeApplicationService", () => {
         fieldPath: "printer.nozzle.diameter",
       })
     ).resolves.toMatchObject({ status: "resolved", value: { type: "number", value: 0.6 } });
+    expect(fixture.now).toHaveBeenCalledTimes(1);
+    expect(fixture.createApplicationId).toHaveBeenCalledTimes(1);
+    expect((await fixture.applications.listForPrinterState("state-a"))[0]).toMatchObject({
+      appliedAt: BASE_TIME,
+      packageTrust: "developer_verified",
+    });
   });
 
   it("applies only series facts for a series-only current identity", async () => {
@@ -265,6 +281,330 @@ describe("PrinterKnowledgeApplicationService", () => {
     ).rejects.toMatchObject({ code });
     expect(fixture.getExactPackage).not.toHaveBeenCalled();
     await expect(fixture.claims.listByTarget(TARGET)).resolves.toEqual([]);
+  });
+
+  it("runtime-validates the closed command before authorization or lookup", async () => {
+    const fixture = await createMemoryFixture();
+    await expect(
+      fixture.service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+        extra: true,
+      } as never)
+    ).rejects.toMatchObject({ code: "invalid_command" });
+    expect(fixture.getExactPackage).not.toHaveBeenCalled();
+  });
+
+  it("projects no-selection, unclassified, and known application status without package lookup", async () => {
+    const noSelection = await createMemoryFixture({ identity: null });
+    await expect(
+      noSelection.service.getApplicationStatus({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).resolves.toEqual({ kind: "no_selection" });
+
+    const unclassified = await createMemoryFixture({
+      identity: createPrinterKnowledgeIdentity({
+        id: "identity-a",
+        printerId: "printer-a",
+        kind: "unclassified",
+        selectedAt: BASE_TIME,
+      }),
+    });
+    await expect(
+      unclassified.service.getApplicationStatus({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).resolves.toEqual({ kind: "unclassified" });
+
+    const known = await createMemoryFixture();
+    await expect(
+      known.service.getApplicationStatus({ printerId: "printer-a", printerStateId: "state-a" })
+    ).resolves.toEqual({ kind: "known", applicationStatus: "not_applied" });
+    await known.service.applyCurrentKnowledgeToPrinterState({
+      printerId: "printer-a",
+      printerStateId: "state-a",
+    });
+    known.getExactPackage.mockClear();
+    await expect(
+      known.service.getApplicationStatus({ printerId: "printer-a", printerStateId: "state-a" })
+    ).resolves.toEqual({ kind: "known", applicationStatus: "applied" });
+    expect(known.getExactPackage).not.toHaveBeenCalled();
+  });
+
+  it("returns already_applied without package, IDs, timestamp, or Claim generation", async () => {
+    const fixture = await createMemoryFixture();
+    await fixture.service.applyCurrentKnowledgeToPrinterState({
+      printerId: "printer-a",
+      printerStateId: "state-a",
+    });
+    fixture.getExactPackage.mockReset();
+    fixture.createApplicationId.mockClear();
+    fixture.createClaimId.mockClear();
+    fixture.now.mockClear();
+    await expect(
+      fixture.service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).resolves.toEqual({
+      status: "already_applied",
+      printerId: "printer-a",
+      printerStateId: "state-a",
+    });
+    expect(fixture.getExactPackage).not.toHaveBeenCalled();
+    expect(fixture.createApplicationId).not.toHaveBeenCalled();
+    expect(fixture.createClaimId).not.toHaveBeenCalled();
+    expect(fixture.now).not.toHaveBeenCalled();
+  });
+
+  it("propagates an authoritative storage-race already_applied result", async () => {
+    const fixture = await createMemoryFixture();
+    const applyOnce = vi.fn(async (application: PackageApplication) => ({
+      status: "already_applied" as const,
+      application,
+    }));
+    const service = new PrinterKnowledgeApplicationService(
+      fixture.printers,
+      fixture.states,
+      fixture.identities,
+      fixture.identities,
+      { getExactPackage: fixture.getExactPackage },
+      fixture.applications,
+      { applyOnce },
+      fixture.activeWorkspace,
+      {
+        createApplicationId: () => "race-candidate",
+        createClaimId: fixture.createClaimId,
+        now: fixture.now,
+      }
+    );
+    await expect(
+      service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).resolves.toMatchObject({ status: "already_applied" });
+    expect(applyOnce).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not treat an older Core-contract application as currently applied", async () => {
+    const fixture = await createMemoryFixture();
+    await fixture.applications.applyOnce(
+      createPackageApplication({
+        id: "historical-application",
+        printerId: "printer-a",
+        printerStateId: "state-a",
+        printerKnowledgeIdentityId: "identity-a",
+        packageId: "example.synthetic-series",
+        packageVersion: "1.0",
+        seriesDefinitionId: "synthetic-series",
+        modelDefinitionId: "synthetic-model",
+        coreContractVersion: "0.9.0",
+        packageTrust: "developer_verified",
+        timestamp: BASE_TIME,
+      }),
+      []
+    );
+    await expect(
+      fixture.service.getApplicationStatus({ printerId: "printer-a", printerStateId: "state-a" })
+    ).resolves.toEqual({ kind: "known", applicationStatus: "not_applied" });
+  });
+
+  it("does not infer application history from legacy unlinked package Claims", async () => {
+    const fixture = await createMemoryFixture();
+    await fixture.claims.create(
+      createFieldClaim({
+        id: "legacy-package-claim",
+        target: TARGET,
+        fieldPath: "printer.nozzle.diameter",
+        value: { type: "number", value: 0.4 },
+        unit: "mm",
+        provenance: {
+          sourceType: "knowledge_package",
+          sourceRef: {
+            type: "knowledge_package",
+            packageId: "example.synthetic-series",
+            packageVersion: "1.0",
+            factId: "series-nozzle",
+          },
+        },
+        trust: "developer_verified",
+        timestamp: "2026-08-08T10:00:00.000Z",
+      })
+    );
+    await expect(
+      fixture.service.getApplicationStatus({ printerId: "printer-a", printerStateId: "state-a" })
+    ).resolves.toEqual({ kind: "known", applicationStatus: "not_applied" });
+    await expect(
+      fixture.service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).resolves.toMatchObject({ status: "applied" });
+    expect(await fixture.claims.listByTarget(TARGET)).toHaveLength(4);
+    await expect(
+      fixture.service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).resolves.toMatchObject({ status: "already_applied" });
+    expect(await fixture.applications.listClaimIds("application-a")).toEqual([
+      "claim-a",
+      "claim-b",
+      "claim-c",
+    ]);
+  });
+
+  it("follows current semantic identity through A to B to equivalent A", async () => {
+    const fixture = await createMemoryFixture();
+    await fixture.service.applyCurrentKnowledgeToPrinterState({
+      printerId: "printer-a",
+      printerStateId: "state-a",
+    });
+    await fixture.identities.createAndSelect(
+      createPrinterKnowledgeIdentity({
+        id: "identity-b",
+        printerId: "printer-a",
+        kind: "known",
+        definitionRef: {
+          packageId: "example.synthetic-series",
+          packageVersion: "1.0",
+          seriesDefinitionId: "synthetic-series",
+        },
+        manufacturerDisplayName: "Synthetic Manufacturer",
+        seriesDisplayName: "Synthetic Series",
+        selectedAt: SECOND_TIME,
+      })
+    );
+    await expect(
+      fixture.service.getApplicationStatus({ printerId: "printer-a", printerStateId: "state-a" })
+    ).resolves.toEqual({ kind: "known", applicationStatus: "not_applied" });
+    await fixture.identities.createAndSelect(
+      createPrinterKnowledgeIdentity({
+        id: "identity-a-returned",
+        printerId: "printer-a",
+        kind: "known",
+        definitionRef: {
+          packageId: "example.synthetic-series",
+          packageVersion: "1.0",
+          seriesDefinitionId: "synthetic-series",
+          modelDefinitionId: "synthetic-model",
+        },
+        manufacturerDisplayName: "Synthetic Manufacturer",
+        seriesDisplayName: "Synthetic Series",
+        modelDisplayName: "Synthetic Model",
+        selectedAt: "2026-08-09T10:02:00.000Z",
+      })
+    );
+    fixture.getExactPackage.mockClear();
+    await expect(
+      fixture.service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).resolves.toMatchObject({ status: "already_applied" });
+    expect(fixture.getExactPackage).not.toHaveBeenCalled();
+    expect((await fixture.applications.listForPrinterState("state-a"))[0]).toMatchObject({
+      printerKnowledgeIdentityId: "identity-a",
+    });
+  });
+
+  it("finishes with the exact identity loaded before classification changes", async () => {
+    const fixture = await createMemoryFixture();
+    fixture.getExactPackage.mockImplementationOnce(async () => {
+      await fixture.identities.createAndSelect(
+        createPrinterKnowledgeIdentity({
+          id: "identity-b",
+          printerId: "printer-a",
+          kind: "unclassified",
+          selectedAt: SECOND_TIME,
+        })
+      );
+      return {
+        text: JSON.stringify(syntheticPackage()),
+        trust: "developer_verified",
+      };
+    });
+    await fixture.service.applyCurrentKnowledgeToPrinterState({
+      printerId: "printer-a",
+      printerStateId: "state-a",
+    });
+    expect((await fixture.applications.listForPrinterState("state-a"))[0]).toMatchObject({
+      printerKnowledgeIdentityId: "identity-a",
+    });
+    await expect(
+      fixture.service.getApplicationStatus({ printerId: "printer-a", printerStateId: "state-a" })
+    ).resolves.toEqual({ kind: "unclassified" });
+  });
+
+  it("records and deduplicates a compatible zero-fact package", async () => {
+    const basePackage = syntheticPackage();
+    const emptyPackage: PrinterSeriesKnowledgePackageV1 = {
+      ...basePackage,
+      payload: { series: { ...basePackage.payload.series, facts: [], models: [] } },
+    };
+    const fixture = await createMemoryFixture({
+      identity: knownIdentity(false),
+      packageText: JSON.stringify(emptyPackage),
+    });
+    await expect(
+      fixture.service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).resolves.toMatchObject({ status: "applied" });
+    await expect(fixture.claims.listByTarget(TARGET)).resolves.toEqual([]);
+    await expect(
+      fixture.service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).resolves.toMatchObject({ status: "already_applied" });
+    await expect(
+      fixture.service.getApplicationStatus({ printerId: "printer-a", printerStateId: "state-a" })
+    ).resolves.toEqual({ kind: "known", applicationStatus: "applied" });
+  });
+
+  it("applies the same current identity independently to different PrinterStates", async () => {
+    const fixture = await createMemoryFixture({
+      claimIds: ["a-1", "a-2", "a-3", "c-1", "c-2", "c-3"],
+    });
+    await fixture.states.create(
+      createPrinterState({ id: "state-c", printerId: "printer-a", timestamp: SECOND_TIME })
+    );
+    const applicationIds = ["application-a", "application-c"];
+    const service = new PrinterKnowledgeApplicationService(
+      fixture.printers,
+      fixture.states,
+      fixture.identities,
+      fixture.identities,
+      { getExactPackage: fixture.getExactPackage },
+      fixture.applications,
+      fixture.applications,
+      fixture.activeWorkspace,
+      {
+        createApplicationId: () => applicationIds.shift() ?? "unexpected",
+        createClaimId: fixture.createClaimId,
+        now: fixture.now,
+      }
+    );
+    await expect(
+      service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).resolves.toMatchObject({ status: "applied" });
+    await expect(
+      service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-c",
+      })
+    ).resolves.toMatchObject({ status: "applied" });
+    expect(await fixture.applications.listForPrinterState("state-a")).toHaveLength(1);
+    expect(await fixture.applications.listForPrinterState("state-c")).toHaveLength(1);
   });
 
   it("rejects cross-Workspace access and wrong state ownership before lookup", async () => {
@@ -330,9 +670,10 @@ describe("PrinterKnowledgeApplicationService", () => {
         fixture.identities,
         fixture.identities,
         { getExactPackage: fixture.getExactPackage },
-        fixture.claims,
+        fixture.applications,
+        fixture.applications,
         fixture.activeWorkspace,
-        { createClaimId: createId, now: () => BASE_TIME }
+        { createApplicationId: createId, createClaimId: createId, now: () => BASE_TIME }
       );
       await expect(
         service.applyCurrentKnowledgeToPrinterState({
@@ -371,7 +712,7 @@ describe("PrinterKnowledgeApplicationService", () => {
     await expect(fixture.claims.findById("claim-new")).resolves.toBeUndefined();
   });
 
-  it("allows two explicit applications as fresh immutable batches", async () => {
+  it("applies once and returns already_applied without a second Claim batch", async () => {
     const fixture = await createMemoryFixture({
       claimIds: ["a-1", "a-2", "a-3", "b-1", "b-2", "b-3"],
       times: [BASE_TIME, SECOND_TIME],
@@ -380,15 +721,15 @@ describe("PrinterKnowledgeApplicationService", () => {
       printerId: "printer-a",
       printerStateId: "state-a",
     });
-    await fixture.service.applyCurrentKnowledgeToPrinterState({
+    const second = await fixture.service.applyCurrentKnowledgeToPrinterState({
       printerId: "printer-a",
       printerStateId: "state-a",
     });
     const claims = await fixture.claims.listByTarget(TARGET);
-    expect(claims).toHaveLength(6);
-    expect(new Set(claims.map((claim) => claim.createdAt))).toEqual(
-      new Set([BASE_TIME, SECOND_TIME])
-    );
+    expect(second.status).toBe("already_applied");
+    expect(claims).toHaveLength(3);
+    expect(new Set(claims.map((claim) => claim.createdAt))).toEqual(new Set([BASE_TIME]));
+    expect(fixture.getExactPackage).toHaveBeenCalledTimes(1);
   });
 
   it("persists the full synthetic flow in SQLite and resolves it after close/reopen without a package source", async () => {
@@ -403,7 +744,6 @@ describe("PrinterKnowledgeApplicationService", () => {
       const lifecycle = database.createPrinterKnowledgeIdentityLifecyclePersistence();
       const identities = database.createPrinterKnowledgeIdentityRepository();
       const selection = database.createPrinterKnowledgeIdentitySelectionPersistence();
-      const claims = database.createFieldClaimRepository();
       await workspaces.save(
         createWorkspace({ id: "workspace-a", name: "A", timestamp: BASE_TIME })
       );
@@ -434,19 +774,71 @@ describe("PrinterKnowledgeApplicationService", () => {
         identities,
         selection,
         source,
-        claims,
+        database.createPackageApplicationRepository(),
+        database.createPackageApplicationLifecyclePersistence(),
         activeWorkspace,
-        { createClaimId: () => ids.shift() ?? "unexpected", now: () => BASE_TIME }
+        {
+          createApplicationId: () => "sqlite-application-a",
+          createClaimId: () => ids.shift() ?? "unexpected",
+          now: () => BASE_TIME,
+        }
       );
-      await service.applyCurrentKnowledgeToPrinterState({
-        printerId: "printer-a",
-        printerStateId: "state-a",
-      });
+      await expect(
+        service.applyCurrentKnowledgeToPrinterState({
+          printerId: "printer-a",
+          printerStateId: "state-a",
+        })
+      ).resolves.toMatchObject({ status: "applied" });
       database.close();
 
       database = openPrintTuneDatabase(path);
       database.migrate();
       const reopenedClaims = database.createFieldClaimRepository();
+      const reopenedApplications = database.createPackageApplicationRepository();
+      const unavailableSource = vi.fn<KnowledgePackageSource["getExactPackage"]>(
+        async () => undefined
+      );
+      const reopenedWorkspace = new ActiveWorkspaceSession(database.createWorkspaceRepository());
+      await reopenedWorkspace.setActiveWorkspace("workspace-a");
+      const reopenedService = new PrinterKnowledgeApplicationService(
+        database.createPrinterRepository(),
+        database.createPrinterStateRepository(),
+        database.createPrinterKnowledgeIdentityRepository(),
+        database.createPrinterKnowledgeIdentitySelectionPersistence(),
+        { getExactPackage: unavailableSource },
+        reopenedApplications,
+        database.createPackageApplicationLifecyclePersistence(),
+        reopenedWorkspace,
+        {
+          createApplicationId: () => "must-not-be-used",
+          createClaimId: () => "must-not-be-used",
+          now: () => SECOND_TIME,
+        }
+      );
+      await expect(
+        reopenedService.applyCurrentKnowledgeToPrinterState({
+          printerId: "printer-a",
+          printerStateId: "state-a",
+        })
+      ).resolves.toMatchObject({ status: "already_applied" });
+      await expect(
+        reopenedService.getApplicationStatus({
+          printerId: "printer-a",
+          printerStateId: "state-a",
+        })
+      ).resolves.toEqual({ kind: "known", applicationStatus: "applied" });
+      expect(unavailableSource).not.toHaveBeenCalled();
+      const applicationHistory = await reopenedApplications.listForPrinterState("state-a");
+      expect(applicationHistory).toHaveLength(1);
+      expect(applicationHistory[0]).toMatchObject({
+        packageTrust: "customer_verified",
+        appliedAt: BASE_TIME,
+      });
+      expect(await reopenedApplications.listClaimIds(applicationHistory[0]!.id)).toEqual([
+        "sqlite-claim-a",
+        "sqlite-claim-b",
+        "sqlite-claim-c",
+      ]);
       const persisted = await reopenedClaims.listByTarget(TARGET);
       expect(persisted).toHaveLength(3);
       expect(persisted.every((claim) => claim.trust === "customer_verified")).toBe(true);

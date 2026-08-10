@@ -97,3 +97,10 @@ export {
   type InstalledKnowledgePackageField,
 } from "./installed-knowledge-package.js";
 export { KNOWLEDGE_PACKAGE_CORE_CONTRACT_VERSION } from "./knowledge-package-core-contract.js";
+export {
+  InvalidPackageApplicationError,
+  createPackageApplication,
+  createPackageApplicationKey,
+  getPackageApplicationKey,
+  type CreatePackageApplicationInput,
+} from "./package-application.js";

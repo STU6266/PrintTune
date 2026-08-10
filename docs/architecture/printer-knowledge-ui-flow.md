@@ -191,6 +191,10 @@ here.
 Option C is required for the normal Alpha UI: do not expose an enabled application action until a
 durable `PackageApplication`/idempotency lifecycle exists.
 
+[`package-application.md`](package-application.md) defines the approved successful-operation record,
+semantic idempotency key, atomic application/Claim/link lifecycle, and future renderer boundary. It
+does not make application automatic or enable the action in the current UI.
+
 - Option A makes repeated evidence creation look like an ordinary harmless action.
 - Option B prevents duplicates only in one renderer session and fails after restart or an uncertain
   IPC response.
@@ -270,6 +274,13 @@ exact package versions remain separate and show their opaque version labels; nei
 described as newer or preferred. Classification success reloads the authoritative Main status. It
 does not apply package knowledge, create Claims, or alter technical data, and no package-application
 IPC or button exists.
+
+The inline selector uses disclosure semantics. Changing the opened Printer resets its pending
+selection and transient messages, and renderer request generations prevent late status, catalog, or
+save responses from an earlier Printer interaction from altering the newly opened Printer UI.
+Visually colliding exact choices are progressively disambiguated by opaque version and, only when
+that still collides, the already renderer-safe package ID. Duplicate model display names use their
+definition ID only as a final local fallback.
 
 The renderer eventually needs only these conceptual operations:
 
@@ -352,7 +363,8 @@ last confirmed state.
 
 ### 5.2e — durable application implementation and explicit UI action
 
-- implement the approved PackageApplication lifecycle before exposing the button;
+- PackageApplication storage and authoritative Main apply-once/status orchestration are implemented;
+- expose the existing durable status and apply operation through validated transport in 5.2e3;
 - connect the exact displayed state to the existing knowledge application and resolution flow;
 - refresh technical details and add the minimal renderer-safe source label;
 - test retries/restarts, unavailable packages, conflicts, double-submit, and persistence failure.

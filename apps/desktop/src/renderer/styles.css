@@ -458,7 +458,6 @@ nav {
 }
 
 .printer-knowledge .knowledge-label,
-.printer-knowledge .knowledge-state,
 .printer-knowledge small {
   color: #68736c;
   font-size: 0.8rem;
@@ -536,6 +535,15 @@ nav {
 .knowledge-catalog strong,
 .knowledge-catalog small {
   width: 100%;
+}
+
+.printer-knowledge strong,
+.printer-knowledge p,
+.knowledge-catalog legend,
+.knowledge-catalog button,
+.knowledge-catalog small,
+.knowledge-confirmation {
+  overflow-wrap: anywhere;
 }
 
 .knowledge-confirmation {

@@ -16,6 +16,8 @@ import { SqlitePrinterKnowledgeIdentityRepository } from "./sqlite-printer-knowl
 import { SqlitePrinterKnowledgeIdentitySelectionPersistence } from "./sqlite-printer-knowledge-identity-selection-persistence.js";
 import { SqlitePrinterKnowledgeIdentityLifecyclePersistence } from "./sqlite-printer-knowledge-identity-lifecycle-persistence.js";
 import { SqliteInstalledKnowledgePackageRepository } from "./sqlite-installed-knowledge-package-repository.js";
+import { SqlitePackageApplicationRepository } from "./sqlite-package-application-repository.js";
+import { SqlitePackageApplicationLifecyclePersistence } from "./sqlite-package-application-lifecycle-persistence.js";
 
 export interface PrintTuneDatabase {
   migrate(): void;
@@ -30,6 +32,8 @@ export interface PrintTuneDatabase {
   createPrinterKnowledgeIdentitySelectionPersistence(): SqlitePrinterKnowledgeIdentitySelectionPersistence;
   createPrinterKnowledgeIdentityLifecyclePersistence(): SqlitePrinterKnowledgeIdentityLifecyclePersistence;
   createInstalledKnowledgePackageRepository(): SqliteInstalledKnowledgePackageRepository;
+  createPackageApplicationRepository(): SqlitePackageApplicationRepository;
+  createPackageApplicationLifecyclePersistence(): SqlitePackageApplicationLifecyclePersistence;
   close(): void;
 }
 
@@ -86,6 +90,14 @@ class PrintTuneSqliteDatabase implements PrintTuneDatabase {
 
   createInstalledKnowledgePackageRepository(): SqliteInstalledKnowledgePackageRepository {
     return new SqliteInstalledKnowledgePackageRepository(this.#database);
+  }
+
+  createPackageApplicationRepository(): SqlitePackageApplicationRepository {
+    return new SqlitePackageApplicationRepository(this.#database);
+  }
+
+  createPackageApplicationLifecyclePersistence(): SqlitePackageApplicationLifecyclePersistence {
+    return new SqlitePackageApplicationLifecyclePersistence(this.#database);
   }
 
   close(): void {

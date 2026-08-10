@@ -326,6 +326,75 @@ const migration007: SqliteMigration = {
   },
 };
 
+const migration008: SqliteMigration = {
+  version: 8,
+  migrate(database) {
+    database.exec(`
+      CREATE UNIQUE INDEX printer_states_printer_id_id_unique_idx
+        ON printer_states(printer_id, id);
+
+      CREATE TABLE package_applications (
+        id TEXT PRIMARY KEY CHECK (length(id) > 0 AND trim(id) = id),
+        printer_id TEXT NOT NULL CHECK (length(printer_id) > 0 AND trim(printer_id) = printer_id),
+        printer_state_id TEXT NOT NULL
+          CHECK (length(printer_state_id) > 0 AND trim(printer_state_id) = printer_state_id),
+        printer_knowledge_identity_id TEXT NOT NULL
+          CHECK (
+            length(printer_knowledge_identity_id) > 0
+            AND trim(printer_knowledge_identity_id) = printer_knowledge_identity_id
+          ),
+        package_id TEXT NOT NULL
+          CHECK (length(package_id) > 0 AND trim(package_id) = package_id),
+        package_version TEXT NOT NULL
+          CHECK (length(package_version) > 0 AND trim(package_version) = package_version),
+        series_definition_id TEXT NOT NULL
+          CHECK (length(series_definition_id) > 0 AND trim(series_definition_id) = series_definition_id),
+        model_definition_id TEXT
+          CHECK (
+            model_definition_id IS NULL
+            OR (length(model_definition_id) > 0 AND trim(model_definition_id) = model_definition_id)
+          ),
+        core_contract_version TEXT NOT NULL
+          CHECK (length(core_contract_version) > 0 AND trim(core_contract_version) = core_contract_version),
+        package_trust TEXT NOT NULL
+          CHECK (package_trust IN ('developer_verified', 'customer_verified')),
+        applied_at TEXT NOT NULL,
+        FOREIGN KEY (printer_id) REFERENCES printers(id),
+        FOREIGN KEY (printer_id, printer_state_id)
+          REFERENCES printer_states(printer_id, id),
+        FOREIGN KEY (printer_id, printer_knowledge_identity_id)
+          REFERENCES printer_knowledge_identities(printer_id, id)
+      ) STRICT;
+
+      CREATE UNIQUE INDEX package_applications_series_once_idx
+        ON package_applications(
+          printer_state_id, package_id, package_version, series_definition_id,
+          core_contract_version
+        ) WHERE model_definition_id IS NULL;
+
+      CREATE UNIQUE INDEX package_applications_model_once_idx
+        ON package_applications(
+          printer_state_id, package_id, package_version, series_definition_id,
+          model_definition_id, core_contract_version
+        ) WHERE model_definition_id IS NOT NULL;
+
+      CREATE INDEX package_applications_printer_state_history_idx
+        ON package_applications(printer_state_id, applied_at, id);
+
+      CREATE TABLE package_application_claims (
+        application_id TEXT NOT NULL,
+        claim_id TEXT NOT NULL,
+        claim_order INTEGER NOT NULL CHECK (claim_order >= 0),
+        PRIMARY KEY (application_id, claim_id),
+        UNIQUE (claim_id),
+        UNIQUE (application_id, claim_order),
+        FOREIGN KEY (application_id) REFERENCES package_applications(id),
+        FOREIGN KEY (claim_id) REFERENCES field_claims(id)
+      ) STRICT;
+    `);
+  },
+};
+
 export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   migration001,
   migration002,
@@ -334,6 +403,7 @@ export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.fr
   migration005,
   migration006,
   migration007,
+  migration008,
 ]);
 
 export function readSchemaVersion(database: DatabaseSync): number {

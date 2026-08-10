@@ -443,19 +443,21 @@ describe("durable installed Knowledge Package flow", () => {
         database.createPrinterKnowledgeIdentityRepository(),
         database.createPrinterKnowledgeIdentitySelectionPersistence(),
         new InstalledKnowledgePackageSource(reopenedPackages),
-        claims,
+        database.createPackageApplicationRepository(),
+        database.createPackageApplicationLifecyclePersistence(),
         activeWorkspace,
-        { createClaimId: () => claimIds.shift() ?? "unexpected", now: () => REINSTALL_AT }
+        {
+          createApplicationId: () => "package-application-a",
+          createClaimId: () => claimIds.shift() ?? "unexpected",
+          now: () => REINSTALL_AT,
+        }
       );
       await expect(
         application.applyCurrentKnowledgeToPrinterState({
           printerId: "printer-a",
           printerStateId: "state-a",
         })
-      ).resolves.toMatchObject({
-        packageId: "example.synthetic-installed-package",
-        packageVersion: "1.0",
-      });
+      ).resolves.toMatchObject({ status: "applied" });
       const persistedClaims = await claims.listByTarget(TARGET);
       expect(persistedClaims).toHaveLength(2);
       expect(persistedClaims.every((claim) => claim.trust === "customer_verified")).toBe(true);

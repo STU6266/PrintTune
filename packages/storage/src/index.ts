@@ -68,6 +68,22 @@ export {
   type PrinterKnowledgeIdentityLifecyclePersistence,
 } from "./printer-knowledge-identity-lifecycle-persistence.js";
 export { SqlitePrinterKnowledgeIdentityLifecyclePersistence } from "./sqlite-printer-knowledge-identity-lifecycle-persistence.js";
+export type {
+  PackageApplicationClaimRepository,
+  PackageApplicationRepository,
+} from "./package-application-repository.js";
+export {
+  InvalidPackageApplicationBatchError,
+  PackageApplicationMetadataConflictError,
+  type PackageApplicationApplyOnceResult,
+  type PackageApplicationLifecyclePersistence,
+} from "./package-application-lifecycle-persistence.js";
+export { InMemoryPackageApplicationPersistence } from "./in-memory-package-application-persistence.js";
+export {
+  PackageApplicationDataIntegrityError,
+  SqlitePackageApplicationRepository,
+} from "./sqlite-package-application-repository.js";
+export { SqlitePackageApplicationLifecyclePersistence } from "./sqlite-package-application-lifecycle-persistence.js";
 export {
   ImmutableKnowledgePackageCollisionError,
   InstalledKnowledgePackageMetadataConflictError,
