@@ -364,7 +364,19 @@ last confirmed state.
 ### 5.2e — durable application implementation and explicit UI action
 
 - PackageApplication storage and authoritative Main apply-once/status orchestration are implemented;
-- expose the existing durable status and apply operation through validated transport in 5.2e3;
+- validated IPC/preload status and Apply operations are implemented with only Printer/PrinterState
+  IDs supplied by the renderer;
+- Apply is offered only for an available package and a durable not-applied semantic key, while
+  applied status survives restart and package removal;
+- successful Apply reloads authoritative application status and refreshes Technical Details through
+  their existing read path;
+- Printer-detail and post-Apply technical reads are scoped to the selected Printer generation, so a
+  late response cannot replace another Printer's details; stale detail and loading state are cleared
+  while switching;
+- an uncertain Apply response is described as an unconfirmed status and prompts an authoritative
+  reload or retry rather than claiming that application failed;
+- the explicit confirmation states that PrintTune adds internal evidence and changes no physical
+  Printer, firmware, or slicer files and sends no G-code;
 - connect the exact displayed state to the existing knowledge application and resolution flow;
 - refresh technical details and add the minimal renderer-safe source label;
 - test retries/restarts, unavailable packages, conflicts, double-submit, and persistence failure.

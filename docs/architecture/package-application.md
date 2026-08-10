@@ -294,5 +294,6 @@ package-independent read-only application-status projection. IPC and UI remain d
 
 ### 5.2e3 — Validated IPC/preload and Apply UI
 
-Add fixed channels and narrow validation. Renderer sends only Printer/PrinterState IDs, displays
-eligibility/applied state, and exposes explicit application. No automatic application.
+Implemented: two fixed validated application channels expose status and explicit Apply through the
+narrow preload API. The renderer sends only Printer/PrinterState IDs, reloads durable status, and
+never applies knowledge automatically.

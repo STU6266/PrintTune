@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import type { Printer, Workspace } from "@printtune/contracts";
 
@@ -26,6 +26,7 @@ interface PrintersPageViewProps {
   readonly onSaveTechnicalField?: (
     input: Omit<AddManualTechnicalClaimRequest, "printerId">
   ) => Promise<void>;
+  readonly onKnowledgeApplied?: () => void | Promise<void>;
 }
 
 export function formatPrinterTimestamp(timestamp: string): string {
@@ -49,6 +50,7 @@ export function PrintersPageView({
   onCreate,
   onOpen,
   onSaveTechnicalField = async () => {},
+  onKnowledgeApplied,
 }: PrintersPageViewProps) {
   return (
     <section className="page printer-page" aria-labelledby="printers-title">
@@ -116,7 +118,10 @@ export function PrintersPageView({
                 </div>
               </dl>
               <p>Dieser unveränderliche Zustand wurde beim Anlegen des Druckers erstellt.</p>
-              <PrinterKnowledgeSection printerId={detail.printer.id} />
+              <PrinterKnowledgeSection
+                printerId={detail.printer.id}
+                {...(onKnowledgeApplied === undefined ? {} : { onKnowledgeApplied })}
+              />
               <PrinterTechnicalDataSection
                 fields={technicalFields}
                 isLoading={technicalFieldsLoading}
@@ -142,14 +147,17 @@ export function PrintersPage() {
   const [error, setError] = useState<string | undefined>();
   const [technicalFields, setTechnicalFields] = useState<readonly TechnicalFieldSummary[]>([]);
   const [technicalFieldsLoading, setTechnicalFieldsLoading] = useState(false);
+  const detailRequestGeneration = useRef(0);
 
   async function refresh(): Promise<void> {
     const response = await window.printTune.listPrinters();
     setActiveWorkspace(response.activeWorkspace);
     setPrinters(response.printers);
     if (detail && !response.printers.some((printer) => printer.id === detail.printer.id)) {
+      detailRequestGeneration.current += 1;
       setDetail(undefined);
       setTechnicalFields([]);
+      setTechnicalFieldsLoading(false);
     }
   }
 
@@ -185,20 +193,27 @@ export function PrintersPage() {
   }
 
   async function handleOpen(id: string): Promise<void> {
+    const expectedGeneration = ++detailRequestGeneration.current;
     setError(undefined);
+    setDetail(undefined);
+    setTechnicalFields([]);
+    setTechnicalFieldsLoading(true);
     try {
-      setTechnicalFieldsLoading(true);
       const [loadedDetail, fields] = await Promise.all([
         window.printTune.getPrinterDetail(id),
         window.printTune.readPrinterTechnicalFields(id),
       ]);
+      if (detailRequestGeneration.current !== expectedGeneration) return;
       setDetail(loadedDetail);
       setTechnicalFields(fields);
     } catch {
+      if (detailRequestGeneration.current !== expectedGeneration) return;
       setDetail(undefined);
       setError("Der Drucker konnte nicht geöffnet werden.");
     } finally {
-      setTechnicalFieldsLoading(false);
+      if (detailRequestGeneration.current === expectedGeneration) {
+        setTechnicalFieldsLoading(false);
+      }
     }
   }
 
@@ -212,6 +227,26 @@ export function PrintersPage() {
         ...input,
       })
     );
+  }
+
+  async function refreshTechnicalFields(): Promise<void> {
+    if (!detail) return;
+    const targetPrinterId = detail.printer.id;
+    const expectedGeneration = ++detailRequestGeneration.current;
+    setTechnicalFieldsLoading(true);
+    try {
+      const fields = await window.printTune.readPrinterTechnicalFields(targetPrinterId);
+      if (
+        detailRequestGeneration.current !== expectedGeneration ||
+        detail.printer.id !== targetPrinterId
+      )
+        return;
+      setTechnicalFields(fields);
+    } finally {
+      if (detailRequestGeneration.current === expectedGeneration) {
+        setTechnicalFieldsLoading(false);
+      }
+    }
   }
 
   return (
@@ -229,6 +264,7 @@ export function PrintersPage() {
       onCreate={(event) => void handleCreate(event)}
       onOpen={(id) => void handleOpen(id)}
       onSaveTechnicalField={handleSaveTechnicalField}
+      onKnowledgeApplied={refreshTechnicalFields}
     />
   );
 }

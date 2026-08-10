@@ -2,6 +2,7 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 
 import type {
   PrinterKnowledgeApi,
+  PrinterKnowledgeApplicationStatus,
   PrinterKnowledgeCatalog,
   PrinterKnowledgeCatalogItem,
   PrinterKnowledgeCatalogModel,
@@ -28,14 +29,22 @@ interface PrinterKnowledgeSectionViewProps {
   readonly isLoading: boolean;
   readonly isOpen: boolean;
   readonly isSaving: boolean;
+  readonly applicationStatus: PrinterKnowledgeApplicationStatus | undefined;
+  readonly isApplicationLoading: boolean;
+  readonly isApplyConfirming: boolean;
+  readonly isApplying: boolean;
   readonly pending: PendingSelection | undefined;
   readonly message: string | undefined;
   readonly error: string | undefined;
   readonly disclosureButtonRef?: RefObject<HTMLButtonElement | null>;
+  readonly applyButtonRef?: RefObject<HTMLButtonElement | null>;
   readonly onOpen: () => void;
   readonly onCancel: () => void;
   readonly onSelect: (selection: PendingSelection) => void;
   readonly onConfirm: () => void;
+  readonly onOpenApply: () => void;
+  readonly onCancelApply: () => void;
+  readonly onConfirmApply: () => void;
 }
 
 function knownPending(
@@ -91,14 +100,22 @@ export function PrinterKnowledgeSectionView({
   isLoading,
   isOpen,
   isSaving,
+  applicationStatus,
+  isApplicationLoading,
+  isApplyConfirming,
+  isApplying,
   pending,
   message,
   error,
   disclosureButtonRef,
+  applyButtonRef,
   onOpen,
   onCancel,
   onSelect,
   onConfirm,
+  onOpenApply,
+  onCancelApply,
+  onConfirmApply,
 }: PrinterKnowledgeSectionViewProps) {
   return (
     <section className="printer-knowledge" aria-labelledby="printer-knowledge-title">
@@ -145,6 +162,63 @@ export function PrinterKnowledgeSectionView({
               Wissenspaket kann derzeit nicht verwendet werden.
             </p>
           ) : null}
+          <div className="knowledge-application">
+            <p className="knowledge-label">Druckerwissen</p>
+            {isApplicationLoading ? <p role="status">Anwendungsstatus wird geladen …</p> : null}
+            {!isApplicationLoading &&
+            applicationStatus?.kind === "known" &&
+            applicationStatus.applicationStatus === "applied" ? (
+              <>
+                <strong>Druckerwissen angewendet</strong>
+                <p>
+                  Bekannte technische Basisdaten wurden diesem Druckerzustand bereits in PrintTune
+                  zugeordnet.
+                </p>
+              </>
+            ) : null}
+            {!isApplicationLoading &&
+            applicationStatus?.kind === "known" &&
+            applicationStatus.applicationStatus === "not_applied" &&
+            status.packageAvailability === "available" ? (
+              <>
+                <strong>Noch nicht angewendet</strong>
+                <p>
+                  PrintTune fügt bekannte technische Basisdaten aus dem lokalen Wissenspaket zu
+                  diesem Druckerzustand hinzu.
+                </p>
+                <p>
+                  Eigene bestätigte Angaben bleiben erhalten. Am Drucker, an der Firmware und an
+                  Slicer-Dateien wird nichts verändert. Es wird kein G-Code gesendet.
+                </p>
+                {!isApplyConfirming ? (
+                  <button
+                    ref={applyButtonRef}
+                    type="button"
+                    className="knowledge-primary"
+                    disabled={isApplying || isSaving}
+                    onClick={onOpenApply}
+                  >
+                    Druckerwissen anwenden
+                  </button>
+                ) : (
+                  <div className="knowledge-confirmation">
+                    <strong>Druckerwissen anwenden?</strong>
+                    <p>
+                      PrintTune übernimmt bekannte technische Basisdaten in die interne Wissensbasis
+                      dieses Druckerzustands.
+                    </p>
+                    <p>Am Drucker selbst wird nichts verändert.</p>
+                    <button type="button" disabled={isApplying} onClick={onConfirmApply}>
+                      {isApplying ? "Wissen wird angewendet …" : "Wissen anwenden"}
+                    </button>
+                    <button type="button" disabled={isApplying} onClick={onCancelApply}>
+                      Abbrechen
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : null}
+          </div>
         </>
       ) : null}
       {!isLoading && status ? (
@@ -152,6 +226,7 @@ export function PrinterKnowledgeSectionView({
           ref={disclosureButtonRef}
           type="button"
           className="knowledge-primary"
+          disabled={isApplying}
           aria-expanded={isOpen}
           aria-controls="printer-knowledge-selector"
           onClick={onOpen}
@@ -192,7 +267,7 @@ export function PrinterKnowledgeSectionView({
                 ) : null}
                 <button
                   type="button"
-                  disabled={isSaving}
+                  disabled={isSaving || isApplying}
                   onClick={() => onSelect(knownPending(item))}
                 >
                   Ganze Serie
@@ -201,7 +276,7 @@ export function PrinterKnowledgeSectionView({
                   <button
                     key={model.selection.modelDefinitionId}
                     type="button"
-                    disabled={isSaving}
+                    disabled={isSaving || isApplying}
                     onClick={() => onSelect(knownPending(item, model))}
                   >
                     {model.modelDisplayName}
@@ -215,7 +290,7 @@ export function PrinterKnowledgeSectionView({
           </div>
           <button
             type="button"
-            disabled={isSaving}
+            disabled={isSaving || isApplying}
             onClick={() => onSelect({ kind: "unclassified" })}
           >
             Unbekannt / Eigenbau
@@ -236,12 +311,12 @@ export function PrinterKnowledgeSectionView({
               ) : (
                 <p>Die bisherigen technischen Angaben bleiben erhalten.</p>
               )}
-              <button type="button" disabled={isSaving} onClick={onConfirm}>
+              <button type="button" disabled={isSaving || isApplying} onClick={onConfirm}>
                 {isSaving ? "Wird gespeichert …" : "Druckermodell bestätigen"}
               </button>
             </div>
           ) : null}
-          <button type="button" disabled={isSaving} onClick={onCancel}>
+          <button type="button" disabled={isSaving || isApplying} onClick={onCancel}>
             Abbrechen
           </button>
         </div>
@@ -270,19 +345,48 @@ export function printerKnowledgeErrorMessage(error: unknown): string {
   return "Das Druckermodell konnte nicht gespeichert werden.";
 }
 
-export function PrinterKnowledgeSection({ printerId }: { readonly printerId: string }) {
+export function PrinterKnowledgeSection({
+  printerId,
+  onKnowledgeApplied,
+}: {
+  readonly printerId: string;
+  readonly onKnowledgeApplied?: () => void | Promise<void>;
+}) {
   const [status, setStatus] = useState<PrinterKnowledgeStatus>();
   const [catalog, setCatalog] = useState<PrinterKnowledgeCatalog>();
   const [isLoading, setIsLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [applicationStatus, setApplicationStatus] = useState<PrinterKnowledgeApplicationStatus>();
+  const [isApplicationLoading, setIsApplicationLoading] = useState(true);
+  const [isApplyConfirming, setIsApplyConfirming] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   const [pending, setPending] = useState<PendingSelection>();
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
   const saving = useRef(false);
+  const applying = useRef(false);
   const generation = useRef(0);
   const pendingPrinterId = useRef<string | undefined>(undefined);
   const disclosureButton = useRef<HTMLButtonElement>(null);
+  const applyButton = useRef<HTMLButtonElement>(null);
+  const focusApplyAfterCancel = useRef(false);
+  const focusDisclosureAfterApply = useRef(false);
+
+  useEffect(() => {
+    if (focusApplyAfterCancel.current && !isApplyConfirming) {
+      focusApplyAfterCancel.current = false;
+      applyButton.current?.focus();
+    }
+    if (
+      focusDisclosureAfterApply.current &&
+      applicationStatus?.kind === "known" &&
+      applicationStatus.applicationStatus === "applied"
+    ) {
+      focusDisclosureAfterApply.current = false;
+      disclosureButton.current?.focus();
+    }
+  });
 
   async function refresh(expectedGeneration: number, targetPrinterId: string): Promise<boolean> {
     const [nextStatus, nextCatalog] = await Promise.all([
@@ -292,25 +396,50 @@ export function PrinterKnowledgeSection({ printerId }: { readonly printerId: str
     if (generation.current !== expectedGeneration) return false;
     setStatus(nextStatus);
     setCatalog(nextCatalog);
+    setIsApplicationLoading(true);
+    let nextApplicationStatus: PrinterKnowledgeApplicationStatus;
+    try {
+      nextApplicationStatus = await window.printTune.getPrinterKnowledgeApplicationStatus({
+        printerId: targetPrinterId,
+        printerStateId: nextStatus.printerState.id,
+      });
+    } catch {
+      if (generation.current !== expectedGeneration) return false;
+      setApplicationStatus(undefined);
+      setIsApplicationLoading(false);
+      setError("Der Anwendungsstatus des Druckerwissens konnte nicht geladen werden.");
+      return true;
+    }
+    if (generation.current !== expectedGeneration) return false;
+    setApplicationStatus(nextApplicationStatus);
+    setIsApplicationLoading(false);
     return true;
   }
 
   useEffect(() => {
     const expectedGeneration = ++generation.current;
     saving.current = false;
+    applying.current = false;
     setStatus(undefined);
     setCatalog(undefined);
+    setApplicationStatus(undefined);
     setIsLoading(true);
     setIsOpen(false);
     setIsSaving(false);
+    setIsApplicationLoading(true);
+    setIsApplyConfirming(false);
+    setIsApplying(false);
     setPending(undefined);
     pendingPrinterId.current = undefined;
     setMessage(undefined);
     setError(undefined);
     void refresh(expectedGeneration, printerId)
       .catch(() => {
-        if (generation.current === expectedGeneration)
+        if (generation.current === expectedGeneration) {
+          setApplicationStatus(undefined);
+          setIsApplicationLoading(false);
           setError("Druckermodell und Wissen konnten nicht geladen werden.");
+        }
       })
       .finally(() => {
         if (generation.current === expectedGeneration) setIsLoading(false);
@@ -321,7 +450,8 @@ export function PrinterKnowledgeSection({ printerId }: { readonly printerId: str
   }, [printerId]);
 
   async function confirm(): Promise<void> {
-    if (!pending || pendingPrinterId.current !== printerId || saving.current) return;
+    if (!pending || pendingPrinterId.current !== printerId || saving.current || applying.current)
+      return;
     const expectedGeneration = generation.current;
     const targetPrinterId = printerId;
     const selected = pending;
@@ -346,6 +476,47 @@ export function PrinterKnowledgeSection({ printerId }: { readonly printerId: str
     }
   }
 
+  async function applyKnowledge(): Promise<void> {
+    if (applying.current || !status || status.kind !== "known") return;
+    const expectedGeneration = generation.current;
+    const targetPrinterId = printerId;
+    const printerStateId = status.printerState.id;
+    applying.current = true;
+    setIsApplying(true);
+    setError(undefined);
+    try {
+      const applied = await window.printTune.applyPrinterKnowledge({
+        printerId: targetPrinterId,
+        printerStateId,
+      });
+      if (generation.current !== expectedGeneration) return;
+      if (!(await refresh(expectedGeneration, targetPrinterId))) return;
+      focusDisclosureAfterApply.current = true;
+      setIsApplyConfirming(false);
+      setMessage(
+        applied.status === "already_applied"
+          ? "Druckerwissen ist bereits angewendet."
+          : "Druckerwissen angewendet."
+      );
+      try {
+        await onKnowledgeApplied?.();
+      } catch {
+        if (generation.current === expectedGeneration) {
+          setError("Die technischen Details konnten nicht aktualisiert werden.");
+        }
+      }
+    } catch (caught) {
+      if (generation.current !== expectedGeneration) return;
+      setError(printerKnowledgeApplyErrorMessage(caught));
+      await refresh(expectedGeneration, targetPrinterId).catch(() => undefined);
+    } finally {
+      if (generation.current === expectedGeneration) {
+        applying.current = false;
+        setIsApplying(false);
+      }
+    }
+  }
+
   return (
     <PrinterKnowledgeSectionView
       status={status}
@@ -353,10 +524,15 @@ export function PrinterKnowledgeSection({ printerId }: { readonly printerId: str
       isLoading={isLoading}
       isOpen={isOpen}
       isSaving={isSaving}
+      applicationStatus={applicationStatus}
+      isApplicationLoading={isApplicationLoading}
+      isApplyConfirming={isApplyConfirming}
+      isApplying={isApplying}
       pending={pending}
       message={message}
       error={error}
       disclosureButtonRef={disclosureButton}
+      applyButtonRef={applyButton}
       onOpen={() => {
         setIsOpen(true);
         setMessage(undefined);
@@ -372,6 +548,24 @@ export function PrinterKnowledgeSection({ printerId }: { readonly printerId: str
         setPending(selection);
       }}
       onConfirm={() => void confirm()}
+      onOpenApply={() => {
+        setIsApplyConfirming(true);
+        setMessage(undefined);
+      }}
+      onCancelApply={() => {
+        focusApplyAfterCancel.current = true;
+        setIsApplyConfirming(false);
+      }}
+      onConfirmApply={() => void applyKnowledge()}
     />
   );
+}
+
+export function printerKnowledgeApplyErrorMessage(error: unknown): string {
+  if (error instanceof PrinterKnowledgeApiError) {
+    if (error.code === "package_unavailable") return "Das Wissenspaket ist nicht mehr verfügbar.";
+    if (error.code === "package_unusable")
+      return "Das Wissenspaket kann derzeit nicht angewendet werden.";
+  }
+  return "Der Anwendungsstatus konnte nicht bestätigt werden. Lade den Status neu oder versuche es erneut.";
 }

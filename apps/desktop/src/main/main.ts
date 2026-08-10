@@ -13,6 +13,7 @@ import { PrinterFlowApplicationService } from "./printer-flow-application-servic
 import { registerPrinterIpcHandlers } from "./printer-ipc";
 import { InstalledKnowledgePackageSource } from "./installed-knowledge-package-source";
 import { PrinterKnowledgeClassificationService } from "./printer-knowledge-classification-service";
+import { PrinterKnowledgeApplicationService } from "./printer-knowledge-application-service";
 import { PrinterKnowledgeIdentityApplicationService } from "./printer-knowledge-identity-application-service";
 import { registerPrinterKnowledgeIpcHandlers } from "./printer-knowledge-ipc";
 import { PrinterKnowledgeUiService } from "./printer-knowledge-ui-service";
@@ -165,6 +166,16 @@ async function startApplication(): Promise<void> {
     packageSource,
     identityApplicationService
   );
+  const printerKnowledgeApplicationService = new PrinterKnowledgeApplicationService(
+    printerRepository,
+    printerStateRepository,
+    identityRepository,
+    identitySelection,
+    packageSource,
+    applicationStorage.database.createPackageApplicationRepository(),
+    applicationStorage.database.createPackageApplicationLifecyclePersistence(),
+    activeWorkspaceSession
+  );
   registerAppInfoHandler();
   registerFeatureFlagsHandler();
   registerWorkspaceIpcHandlers(
@@ -178,6 +189,7 @@ async function startApplication(): Promise<void> {
     ipcMain,
     printerKnowledgeUiService,
     printerKnowledgeClassificationService,
+    printerKnowledgeApplicationService,
     () => trustedRenderer
   );
   registerPrinterTechnicalDataIpcHandlers(

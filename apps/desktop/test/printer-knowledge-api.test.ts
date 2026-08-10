@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   PRINTER_KNOWLEDGE_CATALOG_LIST_CHANNEL,
+  PRINTER_KNOWLEDGE_APPLICATION_STATUS_GET_CHANNEL,
+  PRINTER_KNOWLEDGE_APPLY_CHANNEL,
   PRINTER_KNOWLEDGE_CLASSIFY_KNOWN_CHANNEL,
   PRINTER_KNOWLEDGE_CLASSIFY_UNCLASSIFIED_CHANNEL,
   PRINTER_KNOWLEDGE_STATUS_GET_CHANNEL,
@@ -14,7 +16,7 @@ const CATALOG = { items: [], unusablePackageCount: 1 };
 const RESULT = { status: "selected" as const, classification: { kind: "unclassified" as const } };
 
 describe("Printer Knowledge preload API", () => {
-  it("uses four fixed channels with narrow payloads", async () => {
+  it("uses six fixed channels with narrow payloads", async () => {
     const invoke = vi.fn(async (channel: string) => ({
       ok: true,
       value:
@@ -22,7 +24,16 @@ describe("Printer Knowledge preload API", () => {
           ? CATALOG
           : channel === PRINTER_KNOWLEDGE_STATUS_GET_CHANNEL
             ? { kind: "no_selection", printerState: STATE }
-            : RESULT,
+            : channel === PRINTER_KNOWLEDGE_APPLICATION_STATUS_GET_CHANNEL
+              ? {
+                  kind: "known",
+                  printerId: "printer-a",
+                  printerStateId: "state-a",
+                  applicationStatus: "not_applied",
+                }
+              : channel === PRINTER_KNOWLEDGE_APPLY_CHANNEL
+                ? { status: "applied", printerId: "printer-a", printerStateId: "state-a" }
+                : RESULT,
     }));
     const api = createPrinterKnowledgeApi(invoke);
     const selection = { packageId: "p", packageVersion: "1", seriesDefinitionId: "s" };
@@ -30,11 +41,16 @@ describe("Printer Knowledge preload API", () => {
     await api.getPrinterKnowledgeStatus("printer-a");
     await api.classifyKnownPrinter({ printerId: "printer-a", selection });
     await api.classifyUnclassifiedPrinter({ printerId: "printer-a" });
+    const applicationCommand = { printerId: "printer-a", printerStateId: "state-a" };
+    await api.getPrinterKnowledgeApplicationStatus(applicationCommand);
+    await api.applyPrinterKnowledge(applicationCommand);
     expect(invoke.mock.calls).toEqual([
       [PRINTER_KNOWLEDGE_CATALOG_LIST_CHANNEL],
       [PRINTER_KNOWLEDGE_STATUS_GET_CHANNEL, { printerId: "printer-a" }],
       [PRINTER_KNOWLEDGE_CLASSIFY_KNOWN_CHANNEL, { printerId: "printer-a", selection }],
       [PRINTER_KNOWLEDGE_CLASSIFY_UNCLASSIFIED_CHANNEL, { printerId: "printer-a" }],
+      [PRINTER_KNOWLEDGE_APPLICATION_STATUS_GET_CHANNEL, applicationCommand],
+      [PRINTER_KNOWLEDGE_APPLY_CHANNEL, applicationCommand],
     ]);
   });
 
@@ -84,6 +100,29 @@ describe("Printer Knowledge preload API", () => {
         selection: { packageId: " p", packageVersion: "1", seriesDefinitionId: "s" },
       })
     ).rejects.toThrow(TypeError);
+    await expect(
+      api.applyPrinterKnowledge({
+        printerId: "printer-a",
+        printerStateId: " state-a",
+        extra: "not allowed",
+      } as never)
+    ).rejects.toThrow(TypeError);
     expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("validates narrow application responses and rejects internal fields", async () => {
+    const command = { printerId: "printer-a", printerStateId: "state-a" };
+    await expect(
+      createPrinterKnowledgeApi(async () => ({
+        ok: true,
+        value: { ...command, status: "applied", applicationId: "secret" },
+      })).applyPrinterKnowledge(command)
+    ).rejects.toThrow(TypeError);
+    await expect(
+      createPrinterKnowledgeApi(async () => ({
+        ok: true,
+        value: { ...command, kind: "known", applicationStatus: "applied" },
+      })).getPrinterKnowledgeApplicationStatus(command)
+    ).resolves.toEqual({ ...command, kind: "known", applicationStatus: "applied" });
   });
 });

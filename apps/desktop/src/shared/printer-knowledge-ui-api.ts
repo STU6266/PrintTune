@@ -49,17 +49,44 @@ export interface PrinterKnowledgeClassificationResult {
   readonly classification: PrinterKnowledgeClassification;
 }
 
+export interface PrinterKnowledgeApplicationCommand {
+  readonly printerId: string;
+  readonly printerStateId: string;
+}
+
+export type PrinterKnowledgeApplicationStatus =
+  | { readonly kind: "no_selection"; readonly printerId: string; readonly printerStateId: string }
+  | { readonly kind: "unclassified"; readonly printerId: string; readonly printerStateId: string }
+  | {
+      readonly kind: "known";
+      readonly printerId: string;
+      readonly printerStateId: string;
+      readonly applicationStatus: "not_applied" | "applied";
+    };
+
+export interface PrinterKnowledgeApplyResult {
+  readonly status: "applied" | "already_applied";
+  readonly printerId: string;
+  readonly printerStateId: string;
+}
+
 export const PRINTER_KNOWLEDGE_CATALOG_LIST_CHANNEL = "printer-knowledge:catalog:list" as const;
 export const PRINTER_KNOWLEDGE_STATUS_GET_CHANNEL = "printer-knowledge:status:get" as const;
 export const PRINTER_KNOWLEDGE_CLASSIFY_KNOWN_CHANNEL = "printer-knowledge:classify-known" as const;
 export const PRINTER_KNOWLEDGE_CLASSIFY_UNCLASSIFIED_CHANNEL =
   "printer-knowledge:classify-unclassified" as const;
+export const PRINTER_KNOWLEDGE_APPLICATION_STATUS_GET_CHANNEL =
+  "printer-knowledge:application-status:get" as const;
+export const PRINTER_KNOWLEDGE_APPLY_CHANNEL = "printer-knowledge:apply" as const;
 
 export type PrinterKnowledgeApiErrorCode =
   | "no_active_workspace"
   | "printer_unavailable"
   | "package_unavailable"
   | "package_unusable"
+  | "no_classification"
+  | "unclassified"
+  | "application_failed"
   | "save_failed"
   | "read_failed";
 
@@ -84,13 +111,21 @@ export interface PrinterKnowledgeApi {
   classifyUnclassifiedPrinter(
     command: ClassifyUnclassifiedPrinterCommand
   ): Promise<PrinterKnowledgeClassificationResult>;
+  getPrinterKnowledgeApplicationStatus(
+    command: PrinterKnowledgeApplicationCommand
+  ): Promise<PrinterKnowledgeApplicationStatus>;
+  applyPrinterKnowledge(
+    command: PrinterKnowledgeApplicationCommand
+  ): Promise<PrinterKnowledgeApplyResult>;
 }
 
 type PrinterKnowledgeChannel =
   | typeof PRINTER_KNOWLEDGE_CATALOG_LIST_CHANNEL
   | typeof PRINTER_KNOWLEDGE_STATUS_GET_CHANNEL
   | typeof PRINTER_KNOWLEDGE_CLASSIFY_KNOWN_CHANNEL
-  | typeof PRINTER_KNOWLEDGE_CLASSIFY_UNCLASSIFIED_CHANNEL;
+  | typeof PRINTER_KNOWLEDGE_CLASSIFY_UNCLASSIFIED_CHANNEL
+  | typeof PRINTER_KNOWLEDGE_APPLICATION_STATUS_GET_CHANNEL
+  | typeof PRINTER_KNOWLEDGE_APPLY_CHANNEL;
 type PrinterKnowledgeInvoke = (
   channel: PrinterKnowledgeChannel,
   payload?: unknown
@@ -164,6 +199,20 @@ export function assertPrinterKnowledgeStatusRequest(value: unknown): {
     throw new TypeError("Invalid Printer Knowledge status request");
   }
   return Object.freeze({ printerId: value.printerId });
+}
+
+export function assertPrinterKnowledgeApplicationCommand(
+  value: unknown
+): PrinterKnowledgeApplicationCommand {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["printerId", "printerStateId"]) ||
+    !isId(value.printerId) ||
+    !isId(value.printerStateId)
+  ) {
+    throw new TypeError("Invalid Printer Knowledge application command");
+  }
+  return Object.freeze({ printerId: value.printerId, printerStateId: value.printerStateId });
 }
 
 function assertCatalog(value: unknown): PrinterKnowledgeCatalog {
@@ -310,6 +359,56 @@ function assertClassificationResult(value: unknown): PrinterKnowledgeClassificat
   });
 }
 
+function assertApplicationStatus(value: unknown): PrinterKnowledgeApplicationStatus {
+  if (
+    !isRecord(value) ||
+    !isId(value.printerId) ||
+    !isId(value.printerStateId) ||
+    (value.kind !== "no_selection" && value.kind !== "unclassified" && value.kind !== "known")
+  ) {
+    throw new TypeError("Invalid Printer Knowledge application status response");
+  }
+  if (value.kind === "known") {
+    if (
+      !hasExactKeys(value, ["kind", "printerId", "printerStateId", "applicationStatus"]) ||
+      (value.applicationStatus !== "not_applied" && value.applicationStatus !== "applied")
+    ) {
+      throw new TypeError("Invalid Printer Knowledge application status response");
+    }
+    return Object.freeze({
+      kind: "known",
+      printerId: value.printerId,
+      printerStateId: value.printerStateId,
+      applicationStatus: value.applicationStatus,
+    });
+  }
+  if (!hasExactKeys(value, ["kind", "printerId", "printerStateId"])) {
+    throw new TypeError("Invalid Printer Knowledge application status response");
+  }
+  return Object.freeze({
+    kind: value.kind,
+    printerId: value.printerId,
+    printerStateId: value.printerStateId,
+  });
+}
+
+function assertApplyResult(value: unknown): PrinterKnowledgeApplyResult {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["status", "printerId", "printerStateId"]) ||
+    (value.status !== "applied" && value.status !== "already_applied") ||
+    !isId(value.printerId) ||
+    !isId(value.printerStateId)
+  ) {
+    throw new TypeError("Invalid Printer Knowledge apply response");
+  }
+  return Object.freeze({
+    status: value.status,
+    printerId: value.printerId,
+    printerStateId: value.printerStateId,
+  });
+}
+
 function unwrap<T>(value: unknown, assertValue: (candidate: unknown) => T): T {
   if (!isRecord(value) || (value.ok !== true && value.ok !== false))
     throw new TypeError("Invalid Printer Knowledge transport response");
@@ -319,6 +418,9 @@ function unwrap<T>(value: unknown, assertValue: (candidate: unknown) => T): T {
       "printer_unavailable",
       "package_unavailable",
       "package_unusable",
+      "no_classification",
+      "unclassified",
+      "application_failed",
       "save_failed",
       "read_failed",
     ];
@@ -356,6 +458,17 @@ export function createPrinterKnowledgeApi(invoke: PrinterKnowledgeInvoke): Print
         await invoke(PRINTER_KNOWLEDGE_CLASSIFY_UNCLASSIFIED_CHANNEL, request),
         assertClassificationResult
       );
+    },
+    async getPrinterKnowledgeApplicationStatus(command: PrinterKnowledgeApplicationCommand) {
+      const request = assertPrinterKnowledgeApplicationCommand(command);
+      return unwrap(
+        await invoke(PRINTER_KNOWLEDGE_APPLICATION_STATUS_GET_CHANNEL, request),
+        assertApplicationStatus
+      );
+    },
+    async applyPrinterKnowledge(command: PrinterKnowledgeApplicationCommand) {
+      const request = assertPrinterKnowledgeApplicationCommand(command);
+      return unwrap(await invoke(PRINTER_KNOWLEDGE_APPLY_CHANNEL, request), assertApplyResult);
     },
   });
 }

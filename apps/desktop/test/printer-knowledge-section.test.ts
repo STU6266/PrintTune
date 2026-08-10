@@ -24,6 +24,16 @@ const KNOWN = {
   modelDisplayName: "Model",
   packageAvailability: "available" as const,
 };
+const APPLICATION_NOT_APPLIED = {
+  kind: "known" as const,
+  printerId: "printer-a",
+  printerStateId: "state-a",
+  applicationStatus: "not_applied" as const,
+};
+const APPLICATION_APPLIED = {
+  ...APPLICATION_NOT_APPLIED,
+  applicationStatus: "applied" as const,
+};
 const SELECTION = {
   packageId: "package-a",
   packageVersion: "1",
@@ -50,6 +60,10 @@ const base = {
   isLoading: false,
   isOpen: false,
   isSaving: false,
+  applicationStatus: undefined,
+  isApplicationLoading: false,
+  isApplyConfirming: false,
+  isApplying: false,
   pending: undefined,
   message: undefined,
   error: undefined,
@@ -57,6 +71,9 @@ const base = {
   onCancel: vi.fn(),
   onSelect: vi.fn(),
   onConfirm: vi.fn(),
+  onOpenApply: vi.fn(),
+  onCancelApply: vi.fn(),
+  onConfirmApply: vi.fn(),
 };
 function render(
   status: Parameters<typeof PrinterKnowledgeSectionView>[0]["status"],
@@ -87,6 +104,16 @@ function installApi(overrides: Record<string, unknown> = {}) {
     classifyUnclassifiedPrinter: vi
       .fn()
       .mockResolvedValue({ status: "selected", classification: { kind: "unclassified" } }),
+    getPrinterKnowledgeApplicationStatus: vi.fn().mockResolvedValue({
+      kind: "no_selection",
+      printerId: "printer-a",
+      printerStateId: "state-a",
+    }),
+    applyPrinterKnowledge: vi.fn().mockResolvedValue({
+      status: "applied",
+      printerId: "printer-a",
+      printerStateId: "state-a",
+    }),
     ...overrides,
   };
   Object.defineProperty(window, "printTune", { configurable: true, value: api });
@@ -222,6 +249,171 @@ describe("PrinterKnowledgeSection", () => {
     expect(markup).not.toContain("Wissen übernehmen");
   });
 
+  it("shows Apply only for available known knowledge that is not applied", () => {
+    const available = render(KNOWN, { applicationStatus: APPLICATION_NOT_APPLIED });
+    expect(available).toContain("Druckerwissen anwenden");
+    expect(available).toContain("Eigene bestätigte Angaben bleiben erhalten");
+    expect(available).toContain("Am Drucker");
+    expect(available).toContain("Firmware");
+    expect(available).toContain("Slicer-Dateien");
+    expect(available).toContain("Es wird kein G-Code gesendet");
+    expect(
+      render(
+        { ...KNOWN, packageAvailability: "unavailable" },
+        {
+          applicationStatus: APPLICATION_NOT_APPLIED,
+        }
+      )
+    ).not.toContain("Druckerwissen anwenden");
+    expect(
+      render(
+        { ...KNOWN, packageAvailability: "unusable" },
+        {
+          applicationStatus: APPLICATION_NOT_APPLIED,
+        }
+      )
+    ).not.toContain("Druckerwissen anwenden");
+  });
+
+  it("shows applied passively even when its package is unavailable", () => {
+    const markup = render(
+      { ...KNOWN, packageAvailability: "unavailable" },
+      { applicationStatus: APPLICATION_APPLIED }
+    );
+    expect(markup).toContain("Wissenspaket nicht verfügbar");
+    expect(markup).toContain("Druckerwissen angewendet");
+    expect(markup).not.toContain(">Druckerwissen anwenden<");
+  });
+
+  it("uses an explicit Apply confirmation without calling the API on open", async () => {
+    const api = installApi({
+      getPrinterKnowledgeStatus: vi.fn().mockResolvedValue(KNOWN),
+      getPrinterKnowledgeApplicationStatus: vi
+        .fn()
+        .mockResolvedValueOnce(APPLICATION_NOT_APPLIED)
+        .mockResolvedValueOnce(APPLICATION_APPLIED),
+    });
+    const refreshed = vi.fn();
+    mount(
+      createElement(PrinterKnowledgeSection, {
+        printerId: "printer-a",
+        onKnowledgeApplied: refreshed,
+      })
+    );
+    const apply = await screen.findByRole("button", { name: "Druckerwissen anwenden" });
+    fireEvent.click(apply);
+    expect(api.applyPrinterKnowledge).not.toHaveBeenCalled();
+    expect(screen.getByText("Druckerwissen anwenden?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Wissen anwenden" }));
+    await waitFor(() => expect(api.applyPrinterKnowledge).toHaveBeenCalledTimes(1));
+    expect(api.applyPrinterKnowledge).toHaveBeenCalledWith({
+      printerId: "printer-a",
+      printerStateId: "state-a",
+    });
+    await screen.findByText("Druckerwissen angewendet");
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(api.getPrinterKnowledgeApplicationStatus).toHaveBeenCalledTimes(2);
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Druckermodell ändern" })
+      )
+    );
+  });
+
+  it("restores focus to the Apply button when confirmation is cancelled", async () => {
+    installApi({
+      getPrinterKnowledgeStatus: vi.fn().mockResolvedValue(KNOWN),
+      getPrinterKnowledgeApplicationStatus: vi.fn().mockResolvedValue(APPLICATION_NOT_APPLIED),
+    });
+    mount(createElement(PrinterKnowledgeSection, { printerId: "printer-a" }));
+    const apply = await screen.findByRole("button", { name: "Druckerwissen anwenden" });
+    fireEvent.click(apply);
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Druckerwissen anwenden" })
+      )
+    );
+    expect(screen.queryByText("Druckerwissen anwenden?")).toBeNull();
+  });
+
+  it("prevents duplicate Apply submission and treats already_applied as success", async () => {
+    const pendingApply = deferred<{
+      status: "already_applied";
+      printerId: string;
+      printerStateId: string;
+    }>();
+    const api = installApi({
+      getPrinterKnowledgeStatus: vi.fn().mockResolvedValue(KNOWN),
+      getPrinterKnowledgeApplicationStatus: vi
+        .fn()
+        .mockResolvedValueOnce(APPLICATION_NOT_APPLIED)
+        .mockResolvedValueOnce(APPLICATION_APPLIED),
+      applyPrinterKnowledge: vi.fn(() => pendingApply.promise),
+    });
+    mount(createElement(PrinterKnowledgeSection, { printerId: "printer-a" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Druckerwissen anwenden" }));
+    const confirm = screen.getByRole("button", { name: "Wissen anwenden" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect(api.applyPrinterKnowledge).toHaveBeenCalledTimes(1);
+    pendingApply.resolve({
+      status: "already_applied",
+      printerId: "printer-a",
+      printerStateId: "state-a",
+    });
+    expect(await screen.findByText("Druckerwissen ist bereits angewendet.")).toBeTruthy();
+  });
+
+  it("fails closed while application status is unavailable", async () => {
+    installApi({
+      getPrinterKnowledgeStatus: vi.fn().mockResolvedValue(KNOWN),
+      getPrinterKnowledgeApplicationStatus: vi.fn().mockRejectedValue(new Error("transport")),
+    });
+    mount(createElement(PrinterKnowledgeSection, { printerId: "printer-a" }));
+    expect(
+      await screen.findByText(
+        "Der Anwendungsstatus des Druckerwissens konnte nicht geladen werden."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Druckerwissen anwenden" })).toBeNull();
+  });
+
+  it("maps a package disappearing during Apply and refreshes authoritative status", async () => {
+    const api = installApi({
+      getPrinterKnowledgeStatus: vi.fn().mockResolvedValue(KNOWN),
+      getPrinterKnowledgeApplicationStatus: vi.fn().mockResolvedValue(APPLICATION_NOT_APPLIED),
+      applyPrinterKnowledge: vi
+        .fn()
+        .mockRejectedValue(new PrinterKnowledgeApiError("package_unavailable")),
+    });
+    mount(createElement(PrinterKnowledgeSection, { printerId: "printer-a" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Druckerwissen anwenden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wissen anwenden" }));
+    expect(await screen.findByText("Das Wissenspaket ist nicht mehr verfügbar.")).toBeTruthy();
+    expect(api.getPrinterKnowledgeStatus).toHaveBeenCalledTimes(2);
+    expect(api.getPrinterKnowledgeApplicationStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("describes an uncertain generic Apply failure without claiming failure", async () => {
+    const api = installApi({
+      getPrinterKnowledgeStatus: vi.fn().mockResolvedValue(KNOWN),
+      getPrinterKnowledgeApplicationStatus: vi.fn().mockResolvedValue(APPLICATION_NOT_APPLIED),
+      applyPrinterKnowledge: vi.fn().mockRejectedValue(new Error("transport")),
+    });
+    mount(createElement(PrinterKnowledgeSection, { printerId: "printer-a" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Druckerwissen anwenden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wissen anwenden" }));
+    expect(
+      await screen.findByText(
+        "Der Anwendungsstatus konnte nicht bestätigt werden. Lade den Status neu oder versuche es erneut."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText("Das Druckerwissen konnte nicht angewendet werden.")).toBeNull();
+    expect(api.getPrinterKnowledgeStatus).toHaveBeenCalledTimes(2);
+    expect(api.getPrinterKnowledgeApplicationStatus).toHaveBeenCalledTimes(2);
+  });
+
   it("maps stale selections to safe retry messages", () => {
     expect(
       printerKnowledgeErrorMessage(new PrinterKnowledgeApiError("package_unavailable"))
@@ -260,6 +452,67 @@ describe("PrinterKnowledgeSection", () => {
     );
     expect(api.getPrinterKnowledgeStatus).toHaveBeenCalledWith("printer-a");
     expect(api.getPrinterKnowledgeStatus).toHaveBeenCalledWith("printer-b");
+  });
+
+  it("ignores a late Printer A application-status load after switching to B", async () => {
+    const applicationA = deferred<typeof APPLICATION_NOT_APPLIED>();
+    const applicationB = deferred<typeof APPLICATION_APPLIED>();
+    const api = installApi({
+      getPrinterKnowledgeStatus: vi.fn().mockResolvedValue(KNOWN),
+      getPrinterKnowledgeApplicationStatus: vi.fn((command: { printerId: string }) =>
+        command.printerId === "printer-a" ? applicationA.promise : applicationB.promise
+      ),
+    });
+    const mounted = mount(createElement(PrinterKnowledgeSection, { printerId: "printer-a" }));
+    await waitFor(() => expect(api.getPrinterKnowledgeApplicationStatus).toHaveBeenCalledTimes(1));
+    mounted.rerender(createElement(PrinterKnowledgeSection, { printerId: "printer-b" }));
+    await waitFor(() => expect(api.getPrinterKnowledgeApplicationStatus).toHaveBeenCalledTimes(2));
+    applicationB.resolve({ ...APPLICATION_APPLIED, printerId: "printer-b" });
+    expect(await screen.findByText("Druckerwissen angewendet")).toBeTruthy();
+    applicationA.resolve(APPLICATION_NOT_APPLIED);
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Druckerwissen anwenden" })).toBeNull()
+    );
+  });
+
+  it("does not leak a pending Printer A Apply result or refresh into Printer B", async () => {
+    const pendingApply = deferred<{
+      status: "applied";
+      printerId: string;
+      printerStateId: string;
+    }>();
+    installApi({
+      getPrinterKnowledgeStatus: vi.fn((id: string) =>
+        Promise.resolve(id === "printer-a" ? KNOWN : UNCLASSIFIED)
+      ),
+      getPrinterKnowledgeApplicationStatus: vi.fn((command: { printerId: string }) =>
+        Promise.resolve(
+          command.printerId === "printer-a"
+            ? APPLICATION_NOT_APPLIED
+            : { kind: "unclassified", printerId: "printer-b", printerStateId: "state-a" }
+        )
+      ),
+      applyPrinterKnowledge: vi.fn(() => pendingApply.promise),
+    });
+    const refreshed = vi.fn();
+    const mounted = mount(
+      createElement(PrinterKnowledgeSection, {
+        printerId: "printer-a",
+        onKnowledgeApplied: refreshed,
+      })
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Druckerwissen anwenden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wissen anwenden" }));
+    mounted.rerender(
+      createElement(PrinterKnowledgeSection, {
+        printerId: "printer-b",
+        onKnowledgeApplied: refreshed,
+      })
+    );
+    await screen.findByText("Unbekannt / Eigenbau");
+    pendingApply.resolve({ status: "applied", printerId: "printer-a", printerStateId: "state-a" });
+    await waitFor(() => expect(screen.queryByText("Druckerwissen angewendet.")).toBeNull());
+    expect(refreshed).not.toHaveBeenCalled();
   });
 
   it("discards Printer A pending selection when switching to Printer B", async () => {
@@ -301,7 +554,13 @@ describe("PrinterKnowledgeSection", () => {
         .mockResolvedValueOnce(KNOWN)
         .mockResolvedValueOnce(UNCLASSIFIED),
     });
-    mount(createElement(PrinterKnowledgeSection, { printerId: "printer-a" }));
+    const refreshed = vi.fn();
+    mount(
+      createElement(PrinterKnowledgeSection, {
+        printerId: "printer-a",
+        onKnowledgeApplied: refreshed,
+      })
+    );
     await screen.findByRole("button", { name: "Druckermodell auswählen" });
     fireEvent.click(screen.getByRole("button", { name: "Druckermodell auswählen" }));
     fireEvent.click(screen.getByRole("button", { name: "Model" }));
@@ -320,6 +579,28 @@ describe("PrinterKnowledgeSection", () => {
       expect(api.classifyUnclassifiedPrinter).toHaveBeenCalledWith({ printerId: "printer-a" })
     );
     await waitFor(() => expect(screen.getAllByText("Unbekannt / Eigenbau")).toHaveLength(1));
+    expect(refreshed).not.toHaveBeenCalled();
+  });
+
+  it("uses authoritative A to B to A application-status transitions", async () => {
+    installApi({
+      getPrinterKnowledgeStatus: vi.fn().mockResolvedValue(KNOWN),
+      getPrinterKnowledgeApplicationStatus: vi
+        .fn()
+        .mockResolvedValueOnce(APPLICATION_APPLIED)
+        .mockResolvedValueOnce(APPLICATION_NOT_APPLIED)
+        .mockResolvedValueOnce(APPLICATION_APPLIED),
+    });
+    mount(createElement(PrinterKnowledgeSection, { printerId: "printer-a" }));
+    await screen.findByText("Druckerwissen angewendet");
+    fireEvent.click(screen.getByRole("button", { name: "Druckermodell ändern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ganze Serie" }));
+    fireEvent.click(screen.getByRole("button", { name: "Druckermodell bestätigen" }));
+    await screen.findByRole("button", { name: "Druckerwissen anwenden" });
+    fireEvent.click(screen.getByRole("button", { name: "Druckermodell ändern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Model" }));
+    fireEvent.click(screen.getByRole("button", { name: "Druckermodell bestätigen" }));
+    await screen.findByText("Druckerwissen angewendet");
   });
 
   it("prevents mounted duplicate submission and restores disclosure focus on cancel", async () => {

@@ -546,6 +546,19 @@ nav {
   overflow-wrap: anywhere;
 }
 
+.knowledge-application {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #d8ddd8;
+}
+
+.knowledge-application p,
+.knowledge-application strong {
+  margin: 0;
+}
+
 .knowledge-confirmation {
   display: grid;
   gap: 0.45rem;
