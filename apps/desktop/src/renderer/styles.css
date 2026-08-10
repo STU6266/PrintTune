@@ -439,6 +439,113 @@ nav {
   border-top: 1px solid #d8ddd8;
 }
 
+.printer-knowledge {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #d8ddd8;
+}
+
+.printer-knowledge h2,
+.printer-knowledge h3 {
+  margin: 0;
+  color: #35423a;
+}
+
+.printer-knowledge h2 {
+  font-size: 1.2rem;
+}
+
+.printer-knowledge .knowledge-label,
+.printer-knowledge .knowledge-state,
+.printer-knowledge small {
+  color: #68736c;
+  font-size: 0.8rem;
+}
+
+.knowledge-primary,
+.knowledge-selector button {
+  width: fit-content;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #9caaa0;
+  border-radius: 0.45rem;
+  color: #244b37;
+  background: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.knowledge-primary {
+  border: 0;
+  color: #ffffff;
+  background: #356b4e;
+}
+
+.knowledge-selector button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.knowledge-availability,
+.printer-knowledge .knowledge-warning {
+  padding: 0.65rem;
+  border-radius: 0.45rem;
+  font-size: 0.85rem;
+}
+
+.printer-knowledge .knowledge-available {
+  color: #285b3e;
+  background: #e2eee6;
+}
+
+.printer-knowledge .knowledge-warning {
+  color: #75431f;
+  background: #f7eadf;
+}
+
+.knowledge-selector {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #b9c2bc;
+  border-radius: 0.6rem;
+  background: #fbfcfa;
+}
+
+.knowledge-catalog {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.knowledge-catalog fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #d8ddd8;
+  border-radius: 0.5rem;
+}
+
+.knowledge-catalog legend {
+  color: #35423a;
+  font-weight: 700;
+}
+
+.knowledge-catalog strong,
+.knowledge-catalog small {
+  width: 100%;
+}
+
+.knowledge-confirmation {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem;
+  border-left: 3px solid #356b4e;
+  background: #eef3ef;
+}
+
 .technical-data h2,
 .technical-field-card h3 {
   margin: 0;

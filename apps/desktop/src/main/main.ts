@@ -11,6 +11,11 @@ import { initializeApplicationStorage, type ApplicationStorage } from "./applica
 import { PrinterApplicationService } from "./printer-application-service";
 import { PrinterFlowApplicationService } from "./printer-flow-application-service";
 import { registerPrinterIpcHandlers } from "./printer-ipc";
+import { InstalledKnowledgePackageSource } from "./installed-knowledge-package-source";
+import { PrinterKnowledgeClassificationService } from "./printer-knowledge-classification-service";
+import { PrinterKnowledgeIdentityApplicationService } from "./printer-knowledge-identity-application-service";
+import { registerPrinterKnowledgeIpcHandlers } from "./printer-knowledge-ipc";
+import { PrinterKnowledgeUiService } from "./printer-knowledge-ui-service";
 import { registerPrinterTechnicalDataIpcHandlers } from "./printer-technical-data-ipc";
 import { PrinterTechnicalDataService } from "./printer-technical-data-service";
 import {
@@ -121,10 +126,12 @@ async function startApplication(): Promise<void> {
   const workspaceRepository = applicationStorage.database.createWorkspaceRepository();
   const workspaceService = new WorkspaceApplicationService(workspaceRepository);
   const activeWorkspaceSession = new ActiveWorkspaceSession(workspaceRepository);
+  const printerRepository = applicationStorage.database.createPrinterRepository();
+  const printerStateRepository = applicationStorage.database.createPrinterStateRepository();
   const printerFlowService = new PrinterFlowApplicationService(
     new PrinterApplicationService(applicationStorage.database.createPrinterCreationPersistence()),
-    applicationStorage.database.createPrinterRepository(),
-    applicationStorage.database.createPrinterStateRepository(),
+    printerRepository,
+    printerStateRepository,
     activeWorkspaceSession
   );
   const fieldClaimRepository = applicationStorage.database.createFieldClaimRepository();
@@ -132,6 +139,31 @@ async function startApplication(): Promise<void> {
     printerFlowService,
     fieldClaimRepository,
     new FieldResolutionService(fieldClaimRepository)
+  );
+  const identityRepository = applicationStorage.database.createPrinterKnowledgeIdentityRepository();
+  const identitySelection =
+    applicationStorage.database.createPrinterKnowledgeIdentitySelectionPersistence();
+  const identityApplicationService = new PrinterKnowledgeIdentityApplicationService(
+    applicationStorage.database.createPrinterKnowledgeIdentityLifecyclePersistence(),
+    identityRepository,
+    identitySelection,
+    printerRepository,
+    activeWorkspaceSession
+  );
+  const installedPackages = applicationStorage.database.createInstalledKnowledgePackageRepository();
+  const packageSource = new InstalledKnowledgePackageSource(installedPackages);
+  const printerKnowledgeUiService = new PrinterKnowledgeUiService(
+    installedPackages,
+    packageSource,
+    identityRepository,
+    identitySelection,
+    printerRepository,
+    printerStateRepository,
+    activeWorkspaceSession
+  );
+  const printerKnowledgeClassificationService = new PrinterKnowledgeClassificationService(
+    packageSource,
+    identityApplicationService
   );
   registerAppInfoHandler();
   registerFeatureFlagsHandler();
@@ -142,6 +174,12 @@ async function startApplication(): Promise<void> {
     () => trustedRenderer
   );
   registerPrinterIpcHandlers(ipcMain, printerFlowService, () => trustedRenderer);
+  registerPrinterKnowledgeIpcHandlers(
+    ipcMain,
+    printerKnowledgeUiService,
+    printerKnowledgeClassificationService,
+    () => trustedRenderer
+  );
   registerPrinterTechnicalDataIpcHandlers(
     ipcMain,
     printerTechnicalDataService,

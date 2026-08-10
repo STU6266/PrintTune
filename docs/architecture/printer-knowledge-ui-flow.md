@@ -257,6 +257,20 @@ manual smoke data. Do not hard-code the fixture in React or seed it during norma
 
 ## Future narrow API and IPC surface
 
+Task 5.2c implements the classification portion of this boundary with four fixed IPC channels and a
+narrow preload API for catalog, status, known confirmation, and unclassified confirmation. Every
+handler validates the trusted renderer sender, Main remains the authoritative runtime-validation and
+authorization boundary, and transport failures are reduced to renderer-safe error codes. Raw
+package, repository, parser, digest, trust, and Electron objects are not exposed.
+
+The Printer detail now renders **Druckermodell und Wissen** before **Technische Angaben**. It loads
+the renderer-safe catalog and current status, shows exact availability without replacing immutable
+snapshot labels, and uses an explicit local pending-selection/confirmation step. Visually colliding
+exact package versions remain separate and show their opaque version labels; neither version is
+described as newer or preferred. Classification success reloads the authoritative Main status. It
+does not apply package knowledge, create Claims, or alter technical data, and no package-application
+IPC or button exists.
+
 The renderer eventually needs only these conceptual operations:
 
 ```ts

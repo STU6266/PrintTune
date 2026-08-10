@@ -8,6 +8,7 @@ import type {
   TechnicalFieldSummary,
 } from "../../shared/printer-technical-data-api";
 import { PrinterTechnicalDataSection } from "../PrinterTechnicalDataSection";
+import { PrinterKnowledgeSection } from "../PrinterKnowledgeSection";
 
 interface PrintersPageViewProps {
   readonly activeWorkspace: Workspace | undefined;
@@ -115,6 +116,7 @@ export function PrintersPageView({
                 </div>
               </dl>
               <p>Dieser unveränderliche Zustand wurde beim Anlegen des Druckers erstellt.</p>
+              <PrinterKnowledgeSection printerId={detail.printer.id} />
               <PrinterTechnicalDataSection
                 fields={technicalFields}
                 isLoading={technicalFieldsLoading}
