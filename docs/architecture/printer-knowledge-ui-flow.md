@@ -151,7 +151,7 @@ One Main query should return the authorized Printer's current classification and
 type PrinterKnowledgeStatus = {
   readonly printerState: {
     readonly id: string;
-    readonly label: "Initialer Druckerzustand";
+    readonly label: "Aktueller Druckerzustand";
   };
 } & (
   | { readonly kind: "no_selection" }
@@ -173,18 +173,18 @@ knowledge application but does not disable classification changes or manual tech
 
 ## Exact PrinterState
 
-The existing Printer detail and `PrinterTechnicalDataService` explicitly load and use the Printer's
-initial state. The first Alpha knowledge UI should keep that narrow boundary:
+Printer detail, `PrinterTechnicalDataService`, and Printer Knowledge status explicitly load and use
+the Printer's persistent working State:
 
-- label it **Initialer Druckerzustand** with its existing timestamp;
-- retain the exact `initialState.id` in the loaded detail projection; and
-- apply knowledge only to that displayed state ID.
+- label it **Aktueller Druckerzustand**;
+- retain the exact `workingState.id` in the loaded detail projection; and
+- apply knowledge only to that displayed working State ID.
 
-This is an intentional initial-state flow, not a rule that the earliest, newest, first, or
-highest-ID state is globally current. Main must re-fetch the supplied state and verify Printer
-ownership. A future PrinterState history/viewer can supply another exact viewed state without
-changing the application contract. No current-PrinterState pointer or inferred state is introduced
-here.
+PrinterKnowledgeIdentity remains lifetime Printer data. PackageApplication status and application
+are exact-State data and never inherit through ancestry. Main re-fetches the supplied State,
+verifies Printer ownership, and permits a new application only while it remains the explicit working
+State. An already-completed exact historical application retry remains idempotent. There is no
+arbitrary historical-State Apply UI.
 
 ## Knowledge application and idempotency decision
 

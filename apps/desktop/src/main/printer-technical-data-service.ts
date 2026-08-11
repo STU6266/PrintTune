@@ -81,8 +81,8 @@ export class PrinterTechnicalDataService {
   }
 
   async readTechnicalFields(printerId: string): Promise<readonly TechnicalFieldSummary[]> {
-    const { initialState } = await this.#printerFlow.getPrinterDetail(printerId);
-    const target = { type: "printer_state" as const, printerStateId: initialState.id };
+    const { workingState } = await this.#printerFlow.getPrinterDetail(printerId);
+    const target = { type: "printer_state" as const, printerStateId: workingState.id };
 
     return Promise.all(
       (Object.keys(SUPPORTED_MANUAL_TECHNICAL_FIELDS) as ManualTechnicalFieldKey[]).map(
@@ -107,13 +107,13 @@ export class PrinterTechnicalDataService {
     if (input.confirmation !== "confirmed" && input.confirmation !== "uncertain") {
       throw new InvalidManualTechnicalValueError();
     }
-    const { initialState } = await this.#printerFlow.getPrinterDetail(input.printerId);
+    const { workingState } = await this.#printerFlow.getPrinterDetail(input.printerId);
     const value = validateValue(definition, input.value);
     const confirmed = input.confirmation === "confirmed";
 
     const claim = createFieldClaim({
       id: this.#createClaimId(),
-      target: { type: "printer_state", printerStateId: initialState.id },
+      target: { type: "printer_state", printerStateId: workingState.id },
       fieldPath: definition.fieldPath,
       value,
       ...(definition.unit === undefined ? {} : { unit: definition.unit }),

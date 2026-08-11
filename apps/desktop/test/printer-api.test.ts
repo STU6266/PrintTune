@@ -22,7 +22,7 @@ const PRINTER = {
 };
 const DETAIL = {
   printer: PRINTER,
-  initialState: { id: "state-a", printerId: PRINTER.id, createdAt: PRINTER.createdAt },
+  workingState: { id: "state-a", printerId: PRINTER.id, createdAt: PRINTER.createdAt },
 };
 
 describe("Printer preload API", () => {
@@ -63,7 +63,7 @@ describe("Printer preload API", () => {
   it("rejects malformed IDs, names, and mismatched state results before exposure", async () => {
     const invoke = vi.fn().mockResolvedValue({
       ...DETAIL,
-      initialState: { ...DETAIL.initialState, printerId: "another" },
+      workingState: { ...DETAIL.workingState, printerId: "another" },
     });
     const api = createPrinterApi(invoke);
 

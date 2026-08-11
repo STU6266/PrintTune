@@ -1,5 +1,9 @@
 import type { Printer, PrinterState, Workspace } from "@printtune/contracts";
-import type { PrinterRepository, PrinterStateRepository } from "@printtune/storage";
+import type {
+  PrinterRepository,
+  PrinterStateRepository,
+  PrinterStateSelectionPersistence,
+} from "@printtune/storage";
 
 import type { ActiveWorkspaceSession } from "./active-workspace-session";
 import type { PrinterApplicationService } from "./printer-application-service";
@@ -23,24 +27,31 @@ export interface ActiveWorkspacePrinterList {
 
 export interface PrinterDetail {
   readonly printer: Printer;
-  readonly initialState: PrinterState;
+  readonly workingState: PrinterState;
+}
+
+export class WorkingPrinterStateNotFoundError extends Error {
+  override readonly name = "WorkingPrinterStateNotFoundError";
 }
 
 export class PrinterFlowApplicationService {
   readonly #printerCreation: PrinterApplicationService;
   readonly #printers: PrinterRepository;
   readonly #states: PrinterStateRepository;
+  readonly #stateSelection: PrinterStateSelectionPersistence;
   readonly #activeWorkspace: ActiveWorkspaceSession;
 
   constructor(
     printerCreation: PrinterApplicationService,
     printers: PrinterRepository,
     states: PrinterStateRepository,
+    stateSelection: PrinterStateSelectionPersistence,
     activeWorkspace: ActiveWorkspaceSession
   ) {
     this.#printerCreation = printerCreation;
     this.#printers = printers;
     this.#states = states;
+    this.#stateSelection = stateSelection;
     this.#activeWorkspace = activeWorkspace;
   }
 
@@ -58,7 +69,7 @@ export class PrinterFlowApplicationService {
       workspaceId: workspace.id,
       printerName: name,
     });
-    return { printer: created.printer, initialState: created.initialState };
+    return { printer: created.printer, workingState: created.initialState };
   }
 
   async getPrinterDetail(id: string): Promise<PrinterDetail> {
@@ -68,12 +79,13 @@ export class PrinterFlowApplicationService {
       throw new PrinterNotFoundError(id);
     }
 
-    const initialState = (await this.#states.listByPrinterId(printer.id))[0];
-    if (!initialState) {
-      throw new PrinterNotFoundError(id);
-    }
+    const selectedStateId = await this.#stateSelection.getSelectedStateId(printer.id);
+    if (!selectedStateId) throw new WorkingPrinterStateNotFoundError();
+    const workingState = await this.#states.findById(selectedStateId);
+    if (!workingState || workingState.printerId !== printer.id)
+      throw new WorkingPrinterStateNotFoundError();
 
-    return { printer, initialState };
+    return { printer, workingState };
   }
 
   async #requireActiveWorkspace(): Promise<Workspace> {

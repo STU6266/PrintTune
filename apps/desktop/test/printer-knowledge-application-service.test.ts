@@ -20,6 +20,7 @@ import {
   InMemoryPrinterKnowledgeIdentityLifecyclePersistence,
   InMemoryPrinterRepository,
   InMemoryPrinterStateRepository,
+  InMemoryPrinterStateSelectionPersistence,
   InMemoryWorkspaceRepository,
   openPrintTuneDatabase,
 } from "@printtune/storage";
@@ -146,6 +147,9 @@ async function createMemoryFixture(
   await states.create(
     createPrinterState({ id: "state-b", printerId: "printer-b", timestamp: BASE_TIME })
   );
+  const stateSelection = new InMemoryPrinterStateSelectionPersistence(states);
+  await stateSelection.setSelectedState("printer-a", "state-a");
+  await stateSelection.setSelectedState("printer-b", "state-b");
   await activeWorkspace.setActiveWorkspace("workspace-a");
   if (options.identity !== null)
     await identities.createAndSelect(options.identity ?? knownIdentity());
@@ -172,6 +176,7 @@ async function createMemoryFixture(
     packageSource,
     applications,
     applications,
+    stateSelection,
     activeWorkspace,
     {
       createApplicationId,
@@ -186,6 +191,7 @@ async function createMemoryFixture(
     identities,
     claims,
     applications,
+    stateSelection,
     activeWorkspace,
     getExactPackage,
     createApplicationId,
@@ -360,6 +366,44 @@ describe("PrinterKnowledgeApplicationService", () => {
     expect(fixture.now).not.toHaveBeenCalled();
   });
 
+  it("rejects a new Apply when the requested State is no longer working", async () => {
+    const fixture = await createMemoryFixture();
+    await fixture.states.create(
+      createPrinterState({ id: "state-c", printerId: "printer-a", timestamp: SECOND_TIME })
+    );
+    await fixture.stateSelection.setSelectedState("printer-a", "state-c");
+
+    await expect(
+      fixture.service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).rejects.toMatchObject({ code: "stale_printer_state" });
+    await expect(fixture.applications.listForPrinterState("state-a")).resolves.toEqual([]);
+    await expect(fixture.claims.listByTarget(TARGET)).resolves.toEqual([]);
+  });
+
+  it("returns already_applied for an exact historical retry after selection advances", async () => {
+    const fixture = await createMemoryFixture();
+    await fixture.service.applyCurrentKnowledgeToPrinterState({
+      printerId: "printer-a",
+      printerStateId: "state-a",
+    });
+    await fixture.states.create(
+      createPrinterState({ id: "state-c", printerId: "printer-a", timestamp: SECOND_TIME })
+    );
+    await fixture.stateSelection.setSelectedState("printer-a", "state-c");
+
+    await expect(
+      fixture.service.applyCurrentKnowledgeToPrinterState({
+        printerId: "printer-a",
+        printerStateId: "state-a",
+      })
+    ).resolves.toMatchObject({ status: "already_applied", printerStateId: "state-a" });
+    await expect(fixture.stateSelection.getSelectedStateId("printer-a")).resolves.toBe("state-c");
+    await expect(fixture.applications.listForPrinterState("state-a")).resolves.toHaveLength(1);
+  });
+
   it("propagates an authoritative storage-race already_applied result", async () => {
     const fixture = await createMemoryFixture();
     const applyOnce = vi.fn(async (application: PackageApplication) => ({
@@ -374,6 +418,7 @@ describe("PrinterKnowledgeApplicationService", () => {
       { getExactPackage: fixture.getExactPackage },
       fixture.applications,
       { applyOnce },
+      fixture.stateSelection,
       fixture.activeWorkspace,
       {
         createApplicationId: () => "race-candidate",
@@ -584,6 +629,7 @@ describe("PrinterKnowledgeApplicationService", () => {
       { getExactPackage: fixture.getExactPackage },
       fixture.applications,
       fixture.applications,
+      fixture.stateSelection,
       fixture.activeWorkspace,
       {
         createApplicationId: () => applicationIds.shift() ?? "unexpected",
@@ -597,6 +643,10 @@ describe("PrinterKnowledgeApplicationService", () => {
         printerStateId: "state-a",
       })
     ).resolves.toMatchObject({ status: "applied" });
+    await fixture.stateSelection.setSelectedState("printer-a", "state-c");
+    await expect(
+      service.getApplicationStatus({ printerId: "printer-a", printerStateId: "state-c" })
+    ).resolves.toEqual({ kind: "known", applicationStatus: "not_applied" });
     await expect(
       service.applyCurrentKnowledgeToPrinterState({
         printerId: "printer-a",
@@ -672,6 +722,7 @@ describe("PrinterKnowledgeApplicationService", () => {
         { getExactPackage: fixture.getExactPackage },
         fixture.applications,
         fixture.applications,
+        fixture.stateSelection,
         fixture.activeWorkspace,
         { createApplicationId: createId, createClaimId: createId, now: () => BASE_TIME }
       );
@@ -758,6 +809,9 @@ describe("PrinterKnowledgeApplicationService", () => {
       await states.create(
         createPrinterState({ id: "state-a", printerId: "printer-a", timestamp: BASE_TIME })
       );
+      await database
+        .createPrinterStateSelectionPersistence()
+        .setSelectedState("printer-a", "state-a");
       await lifecycle.createAndSelect(knownIdentity());
       const activeWorkspace = new ActiveWorkspaceSession(workspaces);
       await activeWorkspace.setActiveWorkspace("workspace-a");
@@ -776,6 +830,7 @@ describe("PrinterKnowledgeApplicationService", () => {
         source,
         database.createPackageApplicationRepository(),
         database.createPackageApplicationLifecyclePersistence(),
+        database.createPrinterStateSelectionPersistence(),
         activeWorkspace,
         {
           createApplicationId: () => "sqlite-application-a",
@@ -808,6 +863,7 @@ describe("PrinterKnowledgeApplicationService", () => {
         { getExactPackage: unavailableSource },
         reopenedApplications,
         database.createPackageApplicationLifecyclePersistence(),
+        database.createPrinterStateSelectionPersistence(),
         reopenedWorkspace,
         {
           createApplicationId: () => "must-not-be-used",

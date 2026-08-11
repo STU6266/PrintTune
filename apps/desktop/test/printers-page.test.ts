@@ -24,11 +24,11 @@ const PRINTER = {
 const PRINTER_B = { ...PRINTER, id: "printer-b", name: "Zweiter Drucker" };
 const DETAIL_A = {
   printer: PRINTER,
-  initialState: { id: "state-a", printerId: PRINTER.id, createdAt: TIMESTAMP },
+  workingState: { id: "state-a", printerId: PRINTER.id, createdAt: TIMESTAMP },
 };
 const DETAIL_B = {
   printer: PRINTER_B,
-  initialState: { id: "state-b", printerId: PRINTER_B.id, createdAt: TIMESTAMP },
+  workingState: { id: "state-b", printerId: PRINTER_B.id, createdAt: TIMESTAMP },
 };
 
 function deferred<T>() {
@@ -91,17 +91,15 @@ describe("PrintersPage renderer states", () => {
     expect(markup).toContain("Angelegt:");
   });
 
-  it("renders identity and the immutable initial PrinterState", () => {
+  it("renders identity and the explicit working PrinterState", () => {
     const markup = render({
       printers: [PRINTER],
       detail: {
         printer: PRINTER,
-        initialState: { id: "state-a", printerId: PRINTER.id, createdAt: TIMESTAMP },
+        workingState: { id: "state-a", printerId: PRINTER.id, createdAt: TIMESTAMP },
       },
     });
-    expect(markup).toContain("Initialer Druckerzustand");
-    expect(markup).toContain("unveränderliche Zustand");
-    expect(markup).not.toContain("Aktueller Druckerzustand");
+    expect(markup).toContain("Aktueller Druckerzustand");
   });
 
   it("renders a simple user-facing error without technical internals", () => {
@@ -139,14 +137,14 @@ describe("PrintersPage renderer states", () => {
           id === PRINTER.id
             ? {
                 kind: "known",
-                printerState: { id: "state-a", label: "Initialer Druckerzustand" },
+                printerState: { id: "state-a", label: "Aktueller Druckerzustand" },
                 manufacturerDisplayName: "Maker",
                 seriesDisplayName: "Series",
                 packageAvailability: "available",
               }
             : {
                 kind: "unclassified",
-                printerState: { id: "state-b", label: "Initialer Druckerzustand" },
+                printerState: { id: "state-b", label: "Aktueller Druckerzustand" },
               }
         )
       ),
@@ -215,7 +213,7 @@ describe("PrintersPage renderer states", () => {
       addManualPrinterTechnicalClaim: vi.fn(),
       getPrinterKnowledgeStatus: vi.fn().mockResolvedValue({
         kind: "unclassified",
-        printerState: { id: "state-b", label: "Initialer Druckerzustand" },
+        printerState: { id: "state-b", label: "Aktueller Druckerzustand" },
       }),
       listPrinterKnowledgeCatalog: vi
         .fn()

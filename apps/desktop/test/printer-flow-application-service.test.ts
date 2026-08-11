@@ -33,7 +33,13 @@ describe("PrinterFlowApplicationService", () => {
       now: () => TIMESTAMP,
     }
   );
-  const service = new PrinterFlowApplicationService(creation, printers, states, session);
+  const service = new PrinterFlowApplicationService(
+    creation,
+    printers,
+    states,
+    stateSelection,
+    session
+  );
 
   beforeEach(async () => {
     for (const workspace of await workspaces.list()) await workspaces.delete(workspace.id);
@@ -76,9 +82,9 @@ describe("PrinterFlowApplicationService", () => {
     const detail = await service.createPrinter("  Neuer Drucker  ");
 
     expect(detail.printer).toMatchObject({ workspaceId: "workspace-b", name: "Neuer Drucker" });
-    await expect(states.listByPrinterId(detail.printer.id)).resolves.toEqual([detail.initialState]);
+    await expect(states.listByPrinterId(detail.printer.id)).resolves.toEqual([detail.workingState]);
     await expect(stateSelection.getSelectedStateId(detail.printer.id)).resolves.toBe(
-      detail.initialState.id
+      detail.workingState.id
     );
   });
 
@@ -86,16 +92,17 @@ describe("PrinterFlowApplicationService", () => {
     await expect(service.createPrinter("Drucker")).rejects.toBeInstanceOf(NoActiveWorkspaceError);
   });
 
-  it("returns the earliest state and protects the active Workspace boundary", async () => {
+  it("returns the explicitly selected state even when it is older", async () => {
     await printers.save(printer("printer-a", "workspace-a"));
     await printers.save(printer("printer-b", "workspace-b"));
     await states.create(state("state-late", "printer-a", "2026-08-09T11:00:00.000Z"));
     await states.create(state("state-early", "printer-a", "2026-08-09T09:00:00.000Z"));
     await states.create(state("state-b", "printer-b", TIMESTAMP));
+    await stateSelection.setSelectedState("printer-a", "state-early");
     await session.setActiveWorkspace("workspace-a");
 
     await expect(service.getPrinterDetail("printer-a")).resolves.toMatchObject({
-      initialState: { id: "state-early" },
+      workingState: { id: "state-early" },
     });
     await expect(service.getPrinterDetail("printer-b")).rejects.toBeInstanceOf(
       PrinterNotFoundError
@@ -127,6 +134,7 @@ it("persists the Printer and initial state across a SQLite close and reopen", as
       }),
       first.createPrinterRepository(),
       first.createPrinterStateRepository(),
+      first.createPrinterStateSelectionPersistence(),
       session
     );
     await service.createPrinter("Persistierter Drucker");

@@ -21,7 +21,7 @@ export interface PrinterListResponse {
 
 export interface PrinterDetailResponse {
   readonly printer: Printer;
-  readonly initialState: PrinterState;
+  readonly workingState: PrinterState;
 }
 
 export interface PrinterApi {
@@ -90,11 +90,13 @@ function assertPrinter(value: unknown): Printer {
 }
 
 function assertPrinterState(value: unknown): PrinterState {
+  const hasParent = isRecord(value) && value.parentPrinterStateId !== undefined;
   if (
     !isRecord(value) ||
-    Object.keys(value).length !== 3 ||
+    Object.keys(value).length !== (hasParent ? 4 : 3) ||
     !isId(value.id) ||
     !isId(value.printerId) ||
+    (hasParent && !isId(value.parentPrinterStateId)) ||
     !isTimestamp(value.createdAt)
   ) {
     throw new TypeError("Invalid PrinterState response");
@@ -102,6 +104,7 @@ function assertPrinterState(value: unknown): PrinterState {
   return Object.freeze({
     id: value.id,
     printerId: value.printerId,
+    ...(hasParent ? { parentPrinterStateId: value.parentPrinterStateId as string } : {}),
     createdAt: value.createdAt,
   });
 }
@@ -121,11 +124,11 @@ export function assertPrinterDetailResponse(value: unknown): PrinterDetailRespon
     throw new TypeError("Invalid Printer detail response");
   }
   const printer = assertPrinter(value.printer);
-  const initialState = assertPrinterState(value.initialState);
-  if (initialState.printerId !== printer.id) {
+  const workingState = assertPrinterState(value.workingState);
+  if (workingState.printerId !== printer.id) {
     throw new TypeError("PrinterState does not belong to Printer");
   }
-  return Object.freeze({ printer, initialState });
+  return Object.freeze({ printer, workingState });
 }
 
 export function createPrinterApi(invoke: PrinterInvoke): PrinterApi {

@@ -27,7 +27,7 @@ function harness() {
     listCatalog: vi.fn().mockResolvedValue({ items: [], unusablePackageCount: 0 }),
     getPrinterKnowledgeStatus: vi.fn().mockResolvedValue({
       kind: "no_selection",
-      printerState: { id: "state-a", label: "Initialer Druckerzustand" },
+      printerState: { id: "state-a", label: "Aktueller Druckerzustand" },
     }),
   };
   const classification = {

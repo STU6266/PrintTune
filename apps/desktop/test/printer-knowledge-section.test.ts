@@ -13,7 +13,7 @@ import {
 } from "../src/renderer/PrinterKnowledgeSection";
 import { PrinterKnowledgeApiError } from "../src/shared/printer-knowledge-ui-api";
 
-const STATE = { id: "state-a", label: "Initialer Druckerzustand" as const };
+const STATE = { id: "state-a", label: "Aktueller Druckerzustand" as const };
 const NO_SELECTION = { kind: "no_selection" as const, printerState: STATE };
 const UNCLASSIFIED = { kind: "unclassified" as const, printerState: STATE };
 const KNOWN = {

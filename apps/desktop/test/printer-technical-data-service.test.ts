@@ -47,7 +47,7 @@ async function harness(timestamps: readonly string[] = [EARLY]) {
       now: () => EARLY,
     }
   );
-  const flow = new PrinterFlowApplicationService(creation, printers, states, session);
+  const flow = new PrinterFlowApplicationService(creation, printers, states, selection, session);
   await creation.createPrinterWithInitialState({ workspaceId: "workspace-a", printerName: "A" });
   await printers.save({
     id: "printer-b",
@@ -68,7 +68,7 @@ async function harness(timestamps: readonly string[] = [EARLY]) {
       now: () => timestamps[Math.min(time++, timestamps.length - 1)] ?? EARLY,
     }
   );
-  return { service, claims, session };
+  return { service, claims, session, states, selection, creation, printers };
 }
 
 function add(
@@ -113,7 +113,26 @@ describe("PrinterTechnicalDataService", () => {
     ).resolves.toEqual([]);
   });
 
-  it("derives the initial state and generates Claim identity and timestamp in Main", async () => {
+  it("fails when working-State selection is missing instead of inferring history", async () => {
+    const fixture = await harness();
+    const flow = new PrinterFlowApplicationService(
+      fixture.creation,
+      fixture.printers,
+      fixture.states,
+      new InMemoryPrinterStateSelectionPersistence(fixture.states),
+      fixture.session
+    );
+    const service = new PrinterTechnicalDataService(
+      flow,
+      fixture.claims,
+      new FieldResolutionService(fixture.claims)
+    );
+    await expect(service.readTechnicalFields("printer-a")).rejects.toMatchObject({
+      name: "WorkingPrinterStateNotFoundError",
+    });
+  });
+
+  it("derives the working state and generates Claim identity and timestamp in Main", async () => {
     const { service, claims } = await harness();
     await add(service, "nozzleDiameter", 0.6);
     await expect(claims.findById("claim-1")).resolves.toMatchObject({
@@ -121,6 +140,29 @@ describe("PrinterTechnicalDataService", () => {
       target: { type: "printer_state", printerStateId: "state-a" },
       createdAt: EARLY,
     });
+  });
+
+  it("reads and writes only the explicitly selected State without chronology inference", async () => {
+    const fixture = await harness([EARLY, LATE]);
+    await add(fixture.service, "nozzleDiameter", 0.4);
+    await fixture.states.create({ id: "state-newer", printerId: "printer-a", createdAt: LATE });
+
+    expect(
+      field(await fixture.service.readTechnicalFields("printer-a"), "nozzleDiameter")
+    ).toMatchObject({ status: "resolved", value: 0.4 });
+
+    await fixture.selection.setSelectedState("printer-a", "state-newer");
+    expect(
+      field(await fixture.service.readTechnicalFields("printer-a"), "nozzleDiameter")
+    ).toMatchObject({ status: "missing" });
+    await add(fixture.service, "nozzleDiameter", 0.6);
+    await expect(fixture.claims.findById("claim-2")).resolves.toMatchObject({
+      target: { type: "printer_state", printerStateId: "state-newer" },
+      value: { type: "number", value: 0.6 },
+    });
+    await expect(
+      fixture.claims.listByTarget({ type: "printer_state", printerStateId: "state-a" })
+    ).resolves.toEqual([expect.objectContaining({ value: { type: "number", value: 0.4 } })]);
   });
 
   it("maps confirmed and uncertain input to the exact existing provenance and trust", async () => {
@@ -234,6 +276,7 @@ it("persists manual Claims and derives the same result after SQLite reopen", asy
       }),
       first.createPrinterRepository(),
       first.createPrinterStateRepository(),
+      first.createPrinterStateSelectionPersistence(),
       session
     );
     await flow.createPrinter("A");
@@ -258,6 +301,7 @@ it("persists manual Claims and derives the same result after SQLite reopen", asy
         new PrinterApplicationService(second.createPrinterCreationPersistence()),
         second.createPrinterRepository(),
         second.createPrinterStateRepository(),
+        second.createPrinterStateSelectionPersistence(),
         reopenedSession
       );
       const reopenedClaims = second.createFieldClaimRepository();

@@ -11,7 +11,7 @@ import {
   createPrinterKnowledgeApi,
 } from "../src/shared/printer-knowledge-ui-api";
 
-const STATE = { id: "state-a", label: "Initialer Druckerzustand" as const };
+const STATE = { id: "state-a", label: "Aktueller Druckerzustand" as const };
 const CATALOG = { items: [], unusablePackageCount: 1 };
 const RESULT = { status: "selected" as const, classification: { kind: "unclassified" as const } };
 

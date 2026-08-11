@@ -131,10 +131,13 @@ async function startApplication(): Promise<void> {
   const activeWorkspaceSession = new ActiveWorkspaceSession(workspaceRepository);
   const printerRepository = applicationStorage.database.createPrinterRepository();
   const printerStateRepository = applicationStorage.database.createPrinterStateRepository();
+  const printerStateSelection =
+    applicationStorage.database.createPrinterStateSelectionPersistence();
   const printerFlowService = new PrinterFlowApplicationService(
     new PrinterApplicationService(applicationStorage.database.createPrinterCreationPersistence()),
     printerRepository,
     printerStateRepository,
+    printerStateSelection,
     activeWorkspaceSession
   );
   const fieldClaimRepository = applicationStorage.database.createFieldClaimRepository();
@@ -142,7 +145,7 @@ async function startApplication(): Promise<void> {
     activeWorkspaceSession,
     printerRepository,
     printerStateRepository,
-    applicationStorage.database.createPrinterStateSelectionPersistence(),
+    printerStateSelection,
     applicationStorage.database.createComponentInstallationRepository(),
     fieldClaimRepository,
     applicationStorage.database.createPrinterStateTransitionLifecyclePersistence()
@@ -171,6 +174,7 @@ async function startApplication(): Promise<void> {
     identitySelection,
     printerRepository,
     printerStateRepository,
+    printerStateSelection,
     activeWorkspaceSession
   );
   const printerKnowledgeClassificationService = new PrinterKnowledgeClassificationService(
@@ -185,6 +189,7 @@ async function startApplication(): Promise<void> {
     packageSource,
     applicationStorage.database.createPackageApplicationRepository(),
     applicationStorage.database.createPackageApplicationLifecyclePersistence(),
+    printerStateSelection,
     activeWorkspaceSession
   );
   registerAppInfoHandler();

@@ -12,6 +12,7 @@ import {
   InMemoryPrinterKnowledgeIdentitySelectionPersistence,
   InMemoryPrinterRepository,
   InMemoryPrinterStateRepository,
+  InMemoryPrinterStateSelectionPersistence,
   InMemoryWorkspaceRepository,
 } from "@printtune/storage";
 import { describe, expect, it, vi } from "vitest";
@@ -20,8 +21,8 @@ import { ActiveWorkspaceSession } from "../src/main/active-workspace-session";
 import { InstalledKnowledgePackageSource } from "../src/main/installed-knowledge-package-source";
 import { computeKnowledgePackageSha256 } from "../src/main/knowledge-package-sha256";
 import {
-  InitialPrinterStateNotFoundError,
   PrinterKnowledgeUiService,
+  WorkingPrinterStateNotFoundError,
 } from "../src/main/printer-knowledge-ui-service";
 import {
   NoActiveWorkspaceError,
@@ -124,7 +125,7 @@ function knownIdentity(
   });
 }
 
-async function harness(options: { activeWorkspace?: boolean; initialState?: boolean } = {}) {
+async function harness(options: { activeWorkspace?: boolean; workingState?: boolean } = {}) {
   const workspaces = new InMemoryWorkspaceRepository();
   await workspaces.save(createWorkspace({ id: "workspace-a", name: "A", timestamp: TIMESTAMP }));
   await workspaces.save(createWorkspace({ id: "workspace-b", name: "B", timestamp: TIMESTAMP }));
@@ -149,10 +150,14 @@ async function harness(options: { activeWorkspace?: boolean; initialState?: bool
     })
   );
   const states = new InMemoryPrinterStateRepository();
-  if (options.initialState !== false) {
+  if (options.workingState !== false) {
     await states.create(
       createPrinterState({ id: "state-a", printerId: "printer-a", timestamp: TIMESTAMP })
     );
+  }
+  const stateSelection = new InMemoryPrinterStateSelectionPersistence(states);
+  if (options.workingState !== false) {
+    await stateSelection.setSelectedState("printer-a", "state-a");
   }
 
   const identities = new InMemoryPrinterKnowledgeIdentityRepository();
@@ -167,6 +172,7 @@ async function harness(options: { activeWorkspace?: boolean; initialState?: bool
     selection,
     printers,
     states,
+    stateSelection,
     activeWorkspace
   );
 
@@ -177,6 +183,7 @@ async function harness(options: { activeWorkspace?: boolean; initialState?: bool
     selection,
     printers,
     states,
+    stateSelection,
     activeWorkspace,
     getExactPackage,
   };
@@ -292,7 +299,7 @@ describe("PrinterKnowledgeUiService catalog", () => {
 });
 
 describe("PrinterKnowledgeUiService status", () => {
-  it("returns no_selection with the exact initial state and performs no writes", async () => {
+  it("returns no_selection with the exact working state and performs no writes", async () => {
     const fixture = await harness();
     const accept = vi.spyOn(fixture.installed, "accept");
     const create = vi.spyOn(fixture.identities, "create");
@@ -300,7 +307,7 @@ describe("PrinterKnowledgeUiService status", () => {
 
     await expect(fixture.service.getPrinterKnowledgeStatus("printer-a")).resolves.toEqual({
       kind: "no_selection",
-      printerState: { id: "state-a", label: "Initialer Druckerzustand" },
+      printerState: { id: "state-a", label: "Aktueller Druckerzustand" },
     });
     expect(accept).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
@@ -321,7 +328,7 @@ describe("PrinterKnowledgeUiService status", () => {
 
     await expect(fixture.service.getPrinterKnowledgeStatus("printer-a")).resolves.toEqual({
       kind: "unclassified",
-      printerState: { id: "state-a", label: "Initialer Druckerzustand" },
+      printerState: { id: "state-a", label: "Aktueller Druckerzustand" },
     });
     expect(fixture.getExactPackage).not.toHaveBeenCalled();
   });
@@ -420,6 +427,33 @@ describe("PrinterKnowledgeUiService status", () => {
     });
   });
 
+  it("projects the exact working State while keeping the lifetime identity unchanged", async () => {
+    const fixture = await harness();
+    const identity = knownIdentity("identity-a");
+    await fixture.identities.create(identity);
+    await fixture.selection.setSelectedIdentity("printer-a", identity.id);
+    await fixture.states.create(
+      createPrinterState({
+        id: "state-newer",
+        printerId: "printer-a",
+        timestamp: "2026-08-10T11:00:00.000Z",
+      })
+    );
+
+    await expect(fixture.service.getPrinterKnowledgeStatus("printer-a")).resolves.toMatchObject({
+      kind: "known",
+      printerState: { id: "state-a", label: "Aktueller Druckerzustand" },
+      manufacturerDisplayName: "Historischer Hersteller",
+    });
+    await fixture.stateSelection.setSelectedState("printer-a", "state-newer");
+    await expect(fixture.service.getPrinterKnowledgeStatus("printer-a")).resolves.toMatchObject({
+      kind: "known",
+      printerState: { id: "state-newer", label: "Aktueller Druckerzustand" },
+      manufacturerDisplayName: "Historischer Hersteller",
+    });
+    await expect(fixture.selection.getSelectedIdentityId("printer-a")).resolves.toBe(identity.id);
+  });
+
   it("enforces active Workspace authorization", async () => {
     const fixture = await harness();
     await expect(fixture.service.getPrinterKnowledgeStatus("printer-b")).rejects.toBeInstanceOf(
@@ -431,14 +465,14 @@ describe("PrinterKnowledgeUiService status", () => {
     ).rejects.toBeInstanceOf(NoActiveWorkspaceError);
   });
 
-  it("rejects a missing initial state explicitly", async () => {
-    const fixture = await harness({ initialState: false });
+  it("rejects a missing working selection explicitly", async () => {
+    const fixture = await harness({ workingState: false });
     await expect(fixture.service.getPrinterKnowledgeStatus("printer-a")).rejects.toBeInstanceOf(
-      InitialPrinterStateNotFoundError
+      WorkingPrinterStateNotFoundError
     );
   });
 
-  it("rejects initial-state data belonging to another Printer", async () => {
+  it("rejects selected-state data belonging to another Printer", async () => {
     const fixture = await harness();
     const foreignState = createPrinterState({
       id: "state-b",
@@ -456,11 +490,12 @@ describe("PrinterKnowledgeUiService status", () => {
         findById: vi.fn(async () => foreignState),
         listByPrinterId: vi.fn(async () => [foreignState]),
       },
+      fixture.stateSelection,
       fixture.activeWorkspace
     );
 
     await expect(service.getPrinterKnowledgeStatus("printer-a")).rejects.toBeInstanceOf(
-      InitialPrinterStateNotFoundError
+      WorkingPrinterStateNotFoundError
     );
   });
 });

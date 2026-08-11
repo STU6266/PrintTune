@@ -39,6 +39,7 @@ function safeError(
   if (error instanceof PrinterKnowledgeApplicationError) {
     if (error.code === "no_current_knowledge_identity") return "no_classification";
     if (error.code === "current_identity_unclassified") return "unclassified";
+    if (error.code === "stale_printer_state") return "stale_printer_state";
     if (error.code === "knowledge_package_not_available") return "package_unavailable";
     if (
       error.code === "invalid_knowledge_package" ||

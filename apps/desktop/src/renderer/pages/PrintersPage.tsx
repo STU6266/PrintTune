@@ -27,6 +27,7 @@ interface PrintersPageViewProps {
     input: Omit<AddManualTechnicalClaimRequest, "printerId">
   ) => Promise<void>;
   readonly onKnowledgeApplied?: () => void | Promise<void>;
+  readonly knowledgeRefreshKey?: number;
 }
 
 export function formatPrinterTimestamp(timestamp: string): string {
@@ -51,6 +52,7 @@ export function PrintersPageView({
   onOpen,
   onSaveTechnicalField = async () => {},
   onKnowledgeApplied,
+  knowledgeRefreshKey = 0,
 }: PrintersPageViewProps) {
   return (
     <section className="page printer-page" aria-labelledby="printers-title">
@@ -113,13 +115,14 @@ export function PrintersPageView({
                   <dd>{formatPrinterTimestamp(detail.printer.createdAt)}</dd>
                 </div>
                 <div>
-                  <dt>Initialer Druckerzustand</dt>
-                  <dd>{formatPrinterTimestamp(detail.initialState.createdAt)}</dd>
+                  <dt>Aktueller Druckerzustand</dt>
+                  <dd>{formatPrinterTimestamp(detail.workingState.createdAt)}</dd>
                 </div>
               </dl>
-              <p>Dieser unveränderliche Zustand wurde beim Anlegen des Druckers erstellt.</p>
+              <p>Technische Details und Druckerwissen beziehen sich auf diesen Zustand.</p>
               <PrinterKnowledgeSection
                 printerId={detail.printer.id}
+                refreshKey={knowledgeRefreshKey}
                 {...(onKnowledgeApplied === undefined ? {} : { onKnowledgeApplied })}
               />
               <PrinterTechnicalDataSection
@@ -147,6 +150,7 @@ export function PrintersPage() {
   const [error, setError] = useState<string | undefined>();
   const [technicalFields, setTechnicalFields] = useState<readonly TechnicalFieldSummary[]>([]);
   const [technicalFieldsLoading, setTechnicalFieldsLoading] = useState(false);
+  const [knowledgeRefreshKey, setKnowledgeRefreshKey] = useState(0);
   const detailRequestGeneration = useRef(0);
 
   async function refresh(): Promise<void> {
@@ -229,19 +233,24 @@ export function PrintersPage() {
     );
   }
 
-  async function refreshTechnicalFields(): Promise<void> {
+  async function refreshCurrentPrinter(): Promise<void> {
     if (!detail) return;
     const targetPrinterId = detail.printer.id;
     const expectedGeneration = ++detailRequestGeneration.current;
     setTechnicalFieldsLoading(true);
     try {
-      const fields = await window.printTune.readPrinterTechnicalFields(targetPrinterId);
+      const [loadedDetail, fields] = await Promise.all([
+        window.printTune.getPrinterDetail(targetPrinterId),
+        window.printTune.readPrinterTechnicalFields(targetPrinterId),
+      ]);
       if (
         detailRequestGeneration.current !== expectedGeneration ||
         detail.printer.id !== targetPrinterId
       )
         return;
+      setDetail(loadedDetail);
       setTechnicalFields(fields);
+      setKnowledgeRefreshKey((value) => value + 1);
     } finally {
       if (detailRequestGeneration.current === expectedGeneration) {
         setTechnicalFieldsLoading(false);
@@ -260,11 +269,12 @@ export function PrintersPage() {
       error={error}
       technicalFields={technicalFields}
       technicalFieldsLoading={technicalFieldsLoading}
+      knowledgeRefreshKey={knowledgeRefreshKey}
       onNameChange={setName}
       onCreate={(event) => void handleCreate(event)}
       onOpen={(id) => void handleOpen(id)}
       onSaveTechnicalField={handleSaveTechnicalField}
-      onKnowledgeApplied={refreshTechnicalFields}
+      onKnowledgeApplied={refreshCurrentPrinter}
     />
   );
 }

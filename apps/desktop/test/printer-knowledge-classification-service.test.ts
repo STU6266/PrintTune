@@ -11,6 +11,7 @@ import {
   InMemoryPrinterKnowledgeIdentityLifecyclePersistence,
   InMemoryPrinterRepository,
   InMemoryPrinterStateRepository,
+  InMemoryPrinterStateSelectionPersistence,
   InMemoryWorkspaceRepository,
 } from "@printtune/storage";
 import { describe, expect, it, vi } from "vitest";
@@ -125,6 +126,8 @@ async function harness(options: { active?: boolean; failWrite?: boolean } = {}) 
     { getExactPackage },
     identityService
   );
+  const stateSelection = new InMemoryPrinterStateSelectionPersistence(states);
+  await stateSelection.setSelectedState("printer-a", "state-a");
   const ui = new PrinterKnowledgeUiService(
     installed,
     { getExactPackage },
@@ -132,6 +135,7 @@ async function harness(options: { active?: boolean; failWrite?: boolean } = {}) 
     store,
     printers,
     states,
+    stateSelection,
     activeWorkspace
   );
   return {

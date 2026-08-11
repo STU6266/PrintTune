@@ -17,6 +17,7 @@ import type {
   PrinterKnowledgeIdentitySelectionPersistence,
   PrinterRepository,
   PrinterStateRepository,
+  PrinterStateSelectionPersistence,
 } from "@printtune/storage";
 
 import type {
@@ -31,11 +32,11 @@ import type { KnowledgePackageSource } from "./knowledge-package-source";
 import { CurrentPrinterKnowledgeIdentityNotFoundError } from "./printer-knowledge-identity-application-service";
 import { NoActiveWorkspaceError, PrinterNotFoundError } from "./printer-flow-application-service";
 
-export class InitialPrinterStateNotFoundError extends Error {
-  override readonly name = "InitialPrinterStateNotFoundError";
+export class WorkingPrinterStateNotFoundError extends Error {
+  override readonly name = "WorkingPrinterStateNotFoundError";
 
   constructor(readonly printerId: string) {
-    super(`Initial PrinterState not found for Printer: ${printerId}`);
+    super(`Working PrinterState not found for Printer: ${printerId}`);
   }
 }
 
@@ -117,6 +118,7 @@ export class PrinterKnowledgeUiService {
   readonly #selection: PrinterKnowledgeIdentitySelectionPersistence;
   readonly #printers: PrinterRepository;
   readonly #states: PrinterStateRepository;
+  readonly #stateSelection: PrinterStateSelectionPersistence;
   readonly #activeWorkspace: ActiveWorkspaceSession;
 
   constructor(
@@ -126,6 +128,7 @@ export class PrinterKnowledgeUiService {
     selection: PrinterKnowledgeIdentitySelectionPersistence,
     printers: PrinterRepository,
     states: PrinterStateRepository,
+    stateSelection: PrinterStateSelectionPersistence,
     activeWorkspace: ActiveWorkspaceSession
   ) {
     this.#installedPackages = installedPackages;
@@ -134,6 +137,7 @@ export class PrinterKnowledgeUiService {
     this.#selection = selection;
     this.#printers = printers;
     this.#states = states;
+    this.#stateSelection = stateSelection;
     this.#activeWorkspace = activeWorkspace;
   }
 
@@ -171,10 +175,10 @@ export class PrinterKnowledgeUiService {
 
   async getPrinterKnowledgeStatus(printerId: string): Promise<PrinterKnowledgeStatus> {
     const printer = await this.#authorizePrinter(printerId);
-    const printerState = await this.#getInitialState(printer);
+    const printerState = await this.#getWorkingState(printer);
     const stateProjection = Object.freeze({
       id: printerState.id,
-      label: "Initialer Druckerzustand" as const,
+      label: "Aktueller Druckerzustand" as const,
     });
     const identityId = await this.#selection.getSelectedIdentityId(printer.id);
     if (identityId === undefined) {
@@ -208,10 +212,12 @@ export class PrinterKnowledgeUiService {
     return printer;
   }
 
-  async #getInitialState(printer: Printer): Promise<PrinterState> {
-    const state = (await this.#states.listByPrinterId(printer.id))[0];
+  async #getWorkingState(printer: Printer): Promise<PrinterState> {
+    const stateId = await this.#stateSelection.getSelectedStateId(printer.id);
+    if (!stateId) throw new WorkingPrinterStateNotFoundError(printer.id);
+    const state = await this.#states.findById(stateId);
     if (!state || state.printerId !== printer.id)
-      throw new InitialPrinterStateNotFoundError(printer.id);
+      throw new WorkingPrinterStateNotFoundError(printer.id);
     return state;
   }
 

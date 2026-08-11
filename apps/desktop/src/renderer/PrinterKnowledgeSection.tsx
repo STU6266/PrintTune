@@ -347,9 +347,11 @@ export function printerKnowledgeErrorMessage(error: unknown): string {
 
 export function PrinterKnowledgeSection({
   printerId,
+  refreshKey = 0,
   onKnowledgeApplied,
 }: {
   readonly printerId: string;
+  readonly refreshKey?: number;
   readonly onKnowledgeApplied?: () => void | Promise<void>;
 }) {
   const [status, setStatus] = useState<PrinterKnowledgeStatus>();
@@ -447,7 +449,7 @@ export function PrinterKnowledgeSection({
     return () => {
       if (generation.current === expectedGeneration) generation.current += 1;
     };
-  }, [printerId]);
+  }, [printerId, refreshKey]);
 
   async function confirm(): Promise<void> {
     if (!pending || pendingPrinterId.current !== printerId || saving.current || applying.current)
@@ -566,6 +568,8 @@ export function printerKnowledgeApplyErrorMessage(error: unknown): string {
     if (error.code === "package_unavailable") return "Das Wissenspaket ist nicht mehr verfügbar.";
     if (error.code === "package_unusable")
       return "Das Wissenspaket kann derzeit nicht angewendet werden.";
+    if (error.code === "stale_printer_state")
+      return "Der aktuelle Druckerzustand hat sich geändert. Bitte lade die Daten neu.";
   }
   return "Der Anwendungsstatus konnte nicht bestätigt werden. Lade den Status neu oder versuche es erneut.";
 }

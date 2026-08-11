@@ -86,6 +86,7 @@ export type PrinterKnowledgeApiErrorCode =
   | "package_unusable"
   | "no_classification"
   | "unclassified"
+  | "stale_printer_state"
   | "application_failed"
   | "save_failed"
   | "read_failed";
@@ -273,7 +274,7 @@ function assertStatus(value: unknown): PrinterKnowledgeStatus {
     !isRecord(value.printerState) ||
     !hasExactKeys(value.printerState, ["id", "label"]) ||
     !isId(value.printerState.id) ||
-    value.printerState.label !== "Initialer Druckerzustand"
+    value.printerState.label !== "Aktueller Druckerzustand"
   )
     throw new TypeError("Invalid Printer Knowledge status response");
   const state = Object.freeze({ id: value.printerState.id, label: value.printerState.label });
@@ -420,6 +421,7 @@ function unwrap<T>(value: unknown, assertValue: (candidate: unknown) => T): T {
       "package_unusable",
       "no_classification",
       "unclassified",
+      "stale_printer_state",
       "application_failed",
       "save_failed",
       "read_failed",
@@ -475,7 +477,7 @@ export function createPrinterKnowledgeApi(invoke: PrinterKnowledgeInvoke): Print
 
 export interface PrinterKnowledgeStateProjection {
   readonly id: string;
-  readonly label: "Initialer Druckerzustand";
+  readonly label: "Aktueller Druckerzustand";
 }
 
 interface PrinterKnowledgeStatusBase {

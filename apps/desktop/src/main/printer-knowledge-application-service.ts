@@ -15,6 +15,7 @@ import type {
   PrinterKnowledgeIdentitySelectionPersistence,
   PrinterRepository,
   PrinterStateRepository,
+  PrinterStateSelectionPersistence,
 } from "@printtune/storage";
 
 import type { ActiveWorkspaceSession } from "./active-workspace-session";
@@ -42,6 +43,7 @@ export type PrinterKnowledgeApplicationErrorCode =
   | "invalid_command"
   | "printer_state_not_found"
   | "printer_state_ownership_mismatch"
+  | "stale_printer_state"
   | "no_current_knowledge_identity"
   | "current_identity_unclassified"
   | "knowledge_package_not_available"
@@ -76,6 +78,7 @@ export class PrinterKnowledgeApplicationService {
   readonly #applications: PackageApplicationRepository;
   readonly #applicationLifecycle: PackageApplicationLifecyclePersistence;
   readonly #activeWorkspace: ActiveWorkspaceSession;
+  readonly #stateSelection: PrinterStateSelectionPersistence;
   readonly #createApplicationId: () => string;
   readonly #createClaimId: () => string;
   readonly #now: () => string;
@@ -88,6 +91,7 @@ export class PrinterKnowledgeApplicationService {
     packageSource: KnowledgePackageSource,
     applications: PackageApplicationRepository,
     applicationLifecycle: PackageApplicationLifecyclePersistence,
+    stateSelection: PrinterStateSelectionPersistence,
     activeWorkspace: ActiveWorkspaceSession,
     dependencies: PrinterKnowledgeApplicationServiceDependencies = {}
   ) {
@@ -98,6 +102,7 @@ export class PrinterKnowledgeApplicationService {
     this.#packageSource = packageSource;
     this.#applications = applications;
     this.#applicationLifecycle = applicationLifecycle;
+    this.#stateSelection = stateSelection;
     this.#activeWorkspace = activeWorkspace;
     this.#createApplicationId = dependencies.createApplicationId ?? randomUUID;
     this.#createClaimId = dependencies.createClaimId ?? randomUUID;
@@ -132,6 +137,8 @@ export class PrinterKnowledgeApplicationService {
     if (await this.#applications.findBySemanticKey(key)) {
       return result("already_applied", command);
     }
+
+    await this.#requireWorkingState(command);
 
     const reference = Object.freeze({
       packageId: identity.definitionRef.packageId,
@@ -197,6 +204,7 @@ export class PrinterKnowledgeApplicationService {
   ): Promise<PrinterKnowledgeApplicationStatus> {
     const command = validateCommand(input);
     await this.#authorizeTarget(command);
+    await this.#requireWorkingState(command);
     const identity = await this.#getCurrentIdentity(command.printerId);
     if (!identity) return Object.freeze({ kind: "no_selection" });
     if (identity.kind === "unclassified") return Object.freeze({ kind: "unclassified" });
@@ -245,6 +253,15 @@ export class PrinterKnowledgeApplicationService {
     const identity = await this.#identities.findById(identityId);
     if (!identity) throw new CurrentPrinterKnowledgeIdentityNotFoundError(identityId);
     return identity;
+  }
+
+  async #requireWorkingState(input: ApplyCurrentKnowledgeToPrinterStateInput): Promise<void> {
+    const selectedStateId = await this.#stateSelection.getSelectedStateId(input.printerId);
+    if (selectedStateId !== input.printerStateId) {
+      throw new PrinterKnowledgeApplicationError("stale_printer_state", {
+        printerId: input.printerId,
+      });
+    }
   }
 }
 

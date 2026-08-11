@@ -395,6 +395,9 @@ describe("durable installed Knowledge Package flow", () => {
       await states.create(
         createPrinterState({ id: "state-a", printerId: "printer-a", timestamp: INSTALLED_AT })
       );
+      await database
+        .createPrinterStateSelectionPersistence()
+        .setSelectedState("printer-a", "state-a");
       await identities.createAndSelect(
         createPrinterKnowledgeIdentity({
           id: "identity-a",
@@ -445,6 +448,7 @@ describe("durable installed Knowledge Package flow", () => {
         new InstalledKnowledgePackageSource(reopenedPackages),
         database.createPackageApplicationRepository(),
         database.createPackageApplicationLifecyclePersistence(),
+        database.createPrinterStateSelectionPersistence(),
         activeWorkspace,
         {
           createApplicationId: () => "package-application-a",

@@ -10,11 +10,11 @@ configuration; a meaningful technical change creates another state.
 Lineage and persistent working selection are implemented by migration 009. Migration 010 and the
 Core/storage lifecycle now implement deterministic transition planning, component snapshots,
 controlled Claim carry-forward, durable command idempotency, and atomic transition persistence. The
-desktop flow still deliberately reads the earliest state and labels it **Initialer Druckerzustand**.
-That is a temporary single-state UI boundary, not an inference that the earliest state is current.
-The authorized Main lifecycle service is exposed through three fixed, validated IPC/preload
-operations for overview, transition preparation, and transition creation. No multi-state UI exists
-yet.
+desktop Printer detail, technical-data, and Printer Knowledge flows now use the explicit persistent
+working selection and label it **Aktueller Druckerzustand**. They never infer currentness from
+chronology or lineage. The authorized Main lifecycle service is exposed through three fixed,
+validated IPC/preload operations for overview, transition preparation, and transition creation. No
+multi-state UI exists yet.
 
 The lifecycle is append-only snapshot history, not generic event sourcing. A state stores the
 resulting snapshot identity and lineage; it does not attempt to record every action performed on a
@@ -76,6 +76,12 @@ physical component-instance identity, package-definition references, Claim
 trust/confidence/provenance, and raw transition-policy metadata remain Main-only. The transition
 command cannot choose generated IDs or timestamps, inject Claims or domain objects, select an
 arbitrary historical State, or add arbitrary components.
+
+The existing manual technical-data command deliberately contains no renderer-selected State ID. Main
+targets the working selection at write time. A form opened before a concurrent transition can
+therefore submit its value to the newly working State; 6.2d2 must reload current Printer detail,
+technical data, and Printer Knowledge after transition success to minimize that stale-form window.
+Adding an expected-State concurrency token remains a separate decision.
 
 ## State shape and lineage
 
@@ -446,7 +452,7 @@ proceed in these focused slices:
   single-state Printers;
 - repositories, selection persistence, database factories, and atomic initial creation are covered
   for SQLite and in-memory behavior;
-- the earliest-state UI behavior remains until the application boundary changes.
+- current technical-data and Printer Knowledge flows use the persistent working selection.
 
 ### 6.2b — deterministic transition planning and atomic creation
 
