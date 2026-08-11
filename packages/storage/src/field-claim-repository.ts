@@ -15,3 +15,10 @@ export class DuplicateFieldClaimError extends Error {
     super(`FieldClaim already exists: ${claimId}`);
   }
 }
+
+export class StateTransitionFieldClaimWriteError extends Error {
+  override readonly name = "StateTransitionFieldClaimWriteError";
+  constructor() {
+    super("State-transition FieldClaims may only be written by the transition lifecycle");
+  }
+}

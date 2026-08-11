@@ -28,6 +28,37 @@ function seedWorkspaceAndPrinter(database: DatabaseSync, suffix = "a"): void {
 }
 
 describe("SQLite migration 009 PrinterState lifecycle schema", () => {
+  it("creates Migration 010 command bookkeeping and relational transition provenance", () => {
+    const database = openConfiguredSqliteDatabase(":memory:");
+    try {
+      runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS);
+      expect(readSchemaVersion(database)).toBe(10);
+      expect(database.prepare("PRAGMA table_list").all()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "printer_state_transition_commands", strict: 1 }),
+          expect.objectContaining({ name: "field_claims", strict: 1 }),
+        ])
+      );
+      expect(database.prepare("PRAGMA foreign_key_list(field_claims)").all()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            from: "source_claim_id",
+            table: "field_claims",
+            on_delete: "NO ACTION",
+          }),
+          expect.objectContaining({
+            from: "transition_command_id",
+            table: "printer_state_transition_commands",
+            on_delete: "NO ACTION",
+          }),
+        ])
+      );
+      expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    } finally {
+      database.close();
+    }
+  });
+
   it("preserves a representative v8 database and selects its exact existing State", () => {
     const database = openConfiguredSqliteDatabase(":memory:");
     try {
@@ -148,9 +179,11 @@ describe("SQLite migration 009 PrinterState lifecycle schema", () => {
 
       runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS);
 
-      expect(readSchemaVersion(database)).toBe(9);
+      expect(readSchemaVersion(database)).toBe(10);
       for (const table of preservedTables) {
-        expect(database.prepare(`SELECT * FROM ${table}`).all()).toEqual(before.get(table));
+        expect(database.prepare(`SELECT * FROM ${table}`).all()).toEqual(
+          before.get(table)?.map((row) => expect.objectContaining(row as Record<string, unknown>))
+        );
       }
       expect(database.prepare("SELECT * FROM printer_state_selections").all()).toEqual([
         { printer_id: "printer-a", printer_state_id: "state-a" },

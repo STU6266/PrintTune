@@ -10,6 +10,12 @@ export type { Workspace } from "./workspace.js";
 export type { Printer } from "./printer.js";
 export type { PrinterState } from "./printer-state.js";
 export type {
+  AddedComponentInstallationInput,
+  ComponentTransitionDecision,
+  FieldClaimCarryDecision,
+  PrinterStateTransitionPlan,
+} from "./printer-state-transition.js";
+export type {
   KnownPrinterKnowledgeIdentity,
   PrinterKnowledgeDefinitionReference,
   PrinterKnowledgeIdentity,

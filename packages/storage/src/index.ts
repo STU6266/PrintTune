@@ -55,7 +55,11 @@ export {
   SqliteComponentInstallationRepository,
 } from "./sqlite-component-installation-repository.js";
 export { InMemoryFieldClaimRepository } from "./in-memory-field-claim-repository.js";
-export { DuplicateFieldClaimError, type FieldClaimRepository } from "./field-claim-repository.js";
+export {
+  DuplicateFieldClaimError,
+  StateTransitionFieldClaimWriteError,
+  type FieldClaimRepository,
+} from "./field-claim-repository.js";
 export {
   FieldClaimDataIntegrityError,
   SqliteFieldClaimRepository,
@@ -84,6 +88,17 @@ export {
   type PrinterKnowledgeIdentityLifecyclePersistence,
 } from "./printer-knowledge-identity-lifecycle-persistence.js";
 export { SqlitePrinterKnowledgeIdentityLifecyclePersistence } from "./sqlite-printer-knowledge-identity-lifecycle-persistence.js";
+export {
+  InMemoryPrinterStateTransitionLifecyclePersistence,
+  InvalidPrinterStateTransitionPlanError,
+  PrinterStateTransitionCommandConflictError,
+  StalePrinterStateTransitionSourceError,
+  type CompletedPrinterStateTransitionCommand,
+  type CompletedPrinterStateTransitionCommandRepository,
+  type PrinterStateTransitionLifecyclePersistence,
+  type PrinterStateTransitionLifecycleResult,
+} from "./printer-state-transition-lifecycle-persistence.js";
+export { SqlitePrinterStateTransitionLifecyclePersistence } from "./sqlite-printer-state-transition-lifecycle-persistence.js";
 export type {
   PackageApplicationClaimRepository,
   PackageApplicationRepository,

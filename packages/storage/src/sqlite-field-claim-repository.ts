@@ -9,7 +9,11 @@ import type {
 } from "@printtune/contracts";
 import { createFieldClaim } from "@printtune/core";
 
-import { DuplicateFieldClaimError, type FieldClaimRepository } from "./field-claim-repository.js";
+import {
+  DuplicateFieldClaimError,
+  StateTransitionFieldClaimWriteError,
+  type FieldClaimRepository,
+} from "./field-claim-repository.js";
 
 type SqliteValue = string | number | null;
 
@@ -40,7 +44,8 @@ const SELECT_COLUMNS = `
   id, printer_state_id, component_installation_id, field_path,
   value_type, string_value, number_value, boolean_value, unit,
   source_type, source_reference_id, source_package_id, source_package_version,
-  source_definition_id, source_fact_id, trust, confidence, created_at
+  source_definition_id, source_fact_id, source_claim_id, transition_command_id,
+  trust, confidence, created_at
 `;
 
 function asRow(value: unknown): Record<string, unknown> {
@@ -131,11 +136,17 @@ function parseProvenance(row: Record<string, unknown>): ClaimProvenance {
   const packageVersion = readNullableString(row, "source_package_version");
   const definitionId = readNullableString(row, "source_definition_id");
   const factId = readNullableString(row, "source_fact_id");
+  const sourceClaimId = readNullableString(row, "source_claim_id");
+  const transitionCommandId = readNullableString(row, "transition_command_id");
   const noPackageFields = (): void => {
     requireNull(packageId, "source_package_id");
     requireNull(packageVersion, "source_package_version");
     requireNull(definitionId, "source_definition_id");
     requireNull(factId, "source_fact_id");
+  };
+  const noTransitionFields = (): void => {
+    requireNull(sourceClaimId, "source_claim_id");
+    requireNull(transitionCommandId, "transition_command_id");
   };
   const idReference = (
     type: "import_snapshot" | "slicer_profile_snapshot" | "firmware_snapshot" | "test_run"
@@ -144,6 +155,7 @@ function parseProvenance(row: Record<string, unknown>): ClaimProvenance {
       throw new FieldClaimDataIntegrityError("source_reference_id", "expected a reference ID");
     }
     noPackageFields();
+    noTransitionFields();
     return { sourceType, sourceRef: { type, id: referenceId } } as ClaimProvenance;
   };
 
@@ -153,6 +165,7 @@ function parseProvenance(row: Record<string, unknown>): ClaimProvenance {
     case "ai_unverified":
       requireNull(referenceId, "source_reference_id");
       noPackageFields();
+      noTransitionFields();
       return { sourceType };
     case "imported_file":
       return idReference("import_snapshot");
@@ -194,6 +207,19 @@ function parseProvenance(row: Record<string, unknown>): ClaimProvenance {
           packageVersion,
           definitionId,
         },
+      };
+    case "state_transition":
+      requireNull(referenceId, "source_reference_id");
+      noPackageFields();
+      if (sourceClaimId === null || transitionCommandId === null) {
+        throw new FieldClaimDataIntegrityError(
+          "provenance",
+          "expected complete transition reference"
+        );
+      }
+      return {
+        sourceType,
+        sourceRef: { type: "state_transition", sourceClaimId, transitionCommandId },
       };
     default:
       throw new FieldClaimDataIntegrityError("source_type", "unsupported source type");
@@ -248,24 +274,45 @@ function valueColumns(
 
 function provenanceColumns(
   provenance: ClaimProvenance
-): readonly [string | null, string | null, string | null, string | null, string | null] {
+): readonly [
+  string | null,
+  string | null,
+  string | null,
+  string | null,
+  string | null,
+  string | null,
+  string | null,
+] {
   const reference = provenance.sourceRef;
-  if (!reference) return [null, null, null, null, null];
+  if (!reference) return [null, null, null, null, null, null, null];
   switch (reference.type) {
     case "import_snapshot":
     case "slicer_profile_snapshot":
     case "firmware_snapshot":
     case "test_run":
-      return [reference.id, null, null, null, null];
+      return [reference.id, null, null, null, null, null, null];
     case "knowledge_package":
-      return [null, reference.packageId, reference.packageVersion, null, reference.factId ?? null];
+      return [
+        null,
+        reference.packageId,
+        reference.packageVersion,
+        null,
+        reference.factId ?? null,
+        null,
+        null,
+      ];
     case "component_definition":
-      return [null, reference.packageId, reference.packageVersion, reference.definitionId, null];
+      return [
+        null,
+        reference.packageId,
+        reference.packageVersion,
+        reference.definitionId,
+        null,
+        null,
+        null,
+      ];
     case "state_transition":
-      throw new FieldClaimDataIntegrityError(
-        "provenance",
-        "state-transition provenance requires Migration 010"
-      );
+      return [null, null, null, null, null, reference.sourceClaimId, reference.transitionCommandId];
   }
 }
 
@@ -301,6 +348,9 @@ export class SqliteFieldClaimRepository implements FieldClaimRepository {
   }
 
   async create(claim: FieldClaim): Promise<void> {
+    if (claim.provenance.sourceType === "state_transition") {
+      throw new StateTransitionFieldClaimWriteError();
+    }
     try {
       insertFieldClaim(this.#create, claim);
     } catch (error) {
@@ -316,6 +366,9 @@ export class SqliteFieldClaimRepository implements FieldClaimRepository {
 
     const incomingIds = new Set<string>();
     for (const claim of claims) {
+      if (claim.provenance.sourceType === "state_transition") {
+        throw new StateTransitionFieldClaimWriteError();
+      }
       if (incomingIds.has(claim.id) || this.#find.get(claim.id) !== undefined) {
         throw new DuplicateFieldClaimError(claim.id);
       }
@@ -365,17 +418,31 @@ export function prepareFieldClaimInsert(
         id, printer_state_id, component_installation_id, field_path,
         value_type, string_value, number_value, boolean_value, unit,
         source_type, source_reference_id, source_package_id, source_package_version,
-        source_definition_id, source_fact_id, trust, confidence, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        source_definition_id, source_fact_id, source_claim_id, transition_command_id,
+        trust, confidence, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 }
 
-export function insertFieldClaim(statement: FieldClaimSqliteStatement, claim: FieldClaim): void {
+export function insertFieldClaim(
+  statement: FieldClaimSqliteStatement,
+  claim: FieldClaim,
+  options: { readonly allowStateTransition?: boolean } = {}
+): void {
+  if (claim.provenance.sourceType === "state_transition" && !options.allowStateTransition) {
+    throw new StateTransitionFieldClaimWriteError();
+  }
   const [printerStateId, componentInstallationId] = targetValues(claim.target);
   const [stringValue, numberValue, booleanValue] = valueColumns(claim.value);
-  const [referenceId, packageId, packageVersion, definitionId, factId] = provenanceColumns(
-    claim.provenance
-  );
+  const [
+    referenceId,
+    packageId,
+    packageVersion,
+    definitionId,
+    factId,
+    sourceClaimId,
+    transitionCommandId,
+  ] = provenanceColumns(claim.provenance);
   statement.run(
     claim.id,
     printerStateId,
@@ -392,6 +459,8 @@ export function insertFieldClaim(statement: FieldClaimSqliteStatement, claim: Fi
     packageVersion,
     definitionId,
     factId,
+    sourceClaimId,
+    transitionCommandId,
     claim.trust,
     claim.confidence ?? null,
     claim.createdAt

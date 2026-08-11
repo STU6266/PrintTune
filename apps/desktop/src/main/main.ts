@@ -19,6 +19,8 @@ import { registerPrinterKnowledgeIpcHandlers } from "./printer-knowledge-ipc";
 import { PrinterKnowledgeUiService } from "./printer-knowledge-ui-service";
 import { registerPrinterTechnicalDataIpcHandlers } from "./printer-technical-data-ipc";
 import { PrinterTechnicalDataService } from "./printer-technical-data-service";
+import { PrinterStateLifecycleApplicationService } from "./printer-state-lifecycle-application-service";
+import { registerPrinterStateLifecycleIpcHandlers } from "./printer-state-lifecycle-ipc";
 import {
   NODE_SQLITE_SMOKE_ARGUMENT,
   NODE_SQLITE_SMOKE_RESULT_PREFIX,
@@ -136,6 +138,15 @@ async function startApplication(): Promise<void> {
     activeWorkspaceSession
   );
   const fieldClaimRepository = applicationStorage.database.createFieldClaimRepository();
+  const printerStateLifecycleService = new PrinterStateLifecycleApplicationService(
+    activeWorkspaceSession,
+    printerRepository,
+    printerStateRepository,
+    applicationStorage.database.createPrinterStateSelectionPersistence(),
+    applicationStorage.database.createComponentInstallationRepository(),
+    fieldClaimRepository,
+    applicationStorage.database.createPrinterStateTransitionLifecyclePersistence()
+  );
   const printerTechnicalDataService = new PrinterTechnicalDataService(
     printerFlowService,
     fieldClaimRepository,
@@ -185,6 +196,11 @@ async function startApplication(): Promise<void> {
     () => trustedRenderer
   );
   registerPrinterIpcHandlers(ipcMain, printerFlowService, () => trustedRenderer);
+  registerPrinterStateLifecycleIpcHandlers(
+    ipcMain,
+    printerStateLifecycleService,
+    () => trustedRenderer
+  );
   registerPrinterKnowledgeIpcHandlers(
     ipcMain,
     printerKnowledgeUiService,

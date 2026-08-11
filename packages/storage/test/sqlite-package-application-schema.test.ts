@@ -79,7 +79,7 @@ describe("SQLite migration 008", () => {
       insertVersion7History(database);
       runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS);
 
-      expect(readSchemaVersion(database)).toBe(9);
+      expect(readSchemaVersion(database)).toBe(10);
       expect(database.prepare("SELECT id, source_fact_id FROM field_claims").all()).toEqual([
         { id: "historical-claim", source_fact_id: "stock-nozzle-diameter" },
       ]);

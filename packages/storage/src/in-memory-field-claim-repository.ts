@@ -6,7 +6,13 @@ import type {
   FieldClaimValue,
 } from "@printtune/contracts";
 
-import { DuplicateFieldClaimError, type FieldClaimRepository } from "./field-claim-repository.js";
+import {
+  DuplicateFieldClaimError,
+  StateTransitionFieldClaimWriteError,
+  type FieldClaimRepository,
+} from "./field-claim-repository.js";
+
+export const deleteFieldClaimForRollback = Symbol("deleteFieldClaimForRollback");
 
 function copyTarget(target: FieldClaimTarget): FieldClaimTarget {
   return Object.freeze({ ...target });
@@ -51,6 +57,9 @@ export class InMemoryFieldClaimRepository implements FieldClaimRepository {
   readonly #claims = new Map<string, FieldClaim>();
 
   async create(claim: FieldClaim): Promise<void> {
+    if (claim.provenance.sourceType === "state_transition") {
+      throw new StateTransitionFieldClaimWriteError();
+    }
     if (this.#claims.has(claim.id)) {
       throw new DuplicateFieldClaimError(claim.id);
     }
@@ -60,12 +69,24 @@ export class InMemoryFieldClaimRepository implements FieldClaimRepository {
   async createBatch(claims: readonly FieldClaim[]): Promise<void> {
     const staged = new Map<string, FieldClaim>();
     for (const claim of claims) {
+      if (claim.provenance.sourceType === "state_transition") {
+        throw new StateTransitionFieldClaimWriteError();
+      }
       if (this.#claims.has(claim.id) || staged.has(claim.id)) {
         throw new DuplicateFieldClaimError(claim.id);
       }
       staged.set(claim.id, copyClaim(claim));
     }
     for (const [id, claim] of staged) this.#claims.set(id, claim);
+  }
+
+  [deleteFieldClaimForRollback](claimId: string): void {
+    this.#claims.delete(claimId);
+  }
+
+  createForTransition(claim: FieldClaim): void {
+    if (this.#claims.has(claim.id)) throw new DuplicateFieldClaimError(claim.id);
+    this.#claims.set(claim.id, copyClaim(claim));
   }
 
   async findById(id: string): Promise<FieldClaim | undefined> {

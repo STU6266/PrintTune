@@ -101,6 +101,12 @@ export {
 } from "./printer-knowledge-identity.js";
 export { isStrictIsoUtcTimestamp } from "./timestamp-validation.js";
 export {
+  PrinterStateTransitionPlanError,
+  createPrinterStateTransitionPlan,
+  type CreatePrinterStateTransitionPlanInput,
+  type PrinterStateTransitionPlanErrorCode,
+} from "./printer-state-transition.js";
+export {
   InvalidInstalledKnowledgePackageError,
   InvalidKnowledgePackageSourceTrustPairError,
   createInstalledKnowledgePackage,

@@ -19,6 +19,7 @@ import { SqliteInstalledKnowledgePackageRepository } from "./sqlite-installed-kn
 import { SqlitePackageApplicationRepository } from "./sqlite-package-application-repository.js";
 import { SqlitePackageApplicationLifecyclePersistence } from "./sqlite-package-application-lifecycle-persistence.js";
 import { SqlitePrinterStateSelectionPersistence } from "./sqlite-printer-state-selection-persistence.js";
+import { SqlitePrinterStateTransitionLifecyclePersistence } from "./sqlite-printer-state-transition-lifecycle-persistence.js";
 
 export interface PrintTuneDatabase {
   migrate(): void;
@@ -27,6 +28,7 @@ export interface PrintTuneDatabase {
   createPrinterRepository(): SqlitePrinterRepository;
   createPrinterStateRepository(): SqlitePrinterStateRepository;
   createPrinterStateSelectionPersistence(): SqlitePrinterStateSelectionPersistence;
+  createPrinterStateTransitionLifecyclePersistence(): SqlitePrinterStateTransitionLifecyclePersistence;
   createPrinterCreationPersistence(): SqlitePrinterCreationPersistence;
   createComponentInstallationRepository(): SqliteComponentInstallationRepository;
   createFieldClaimRepository(): SqliteFieldClaimRepository;
@@ -68,6 +70,10 @@ class PrintTuneSqliteDatabase implements PrintTuneDatabase {
 
   createPrinterStateSelectionPersistence(): SqlitePrinterStateSelectionPersistence {
     return new SqlitePrinterStateSelectionPersistence(this.#database);
+  }
+
+  createPrinterStateTransitionLifecyclePersistence(): SqlitePrinterStateTransitionLifecyclePersistence {
+    return new SqlitePrinterStateTransitionLifecyclePersistence(this.#database);
   }
 
   createPrinterCreationPersistence(): SqlitePrinterCreationPersistence {

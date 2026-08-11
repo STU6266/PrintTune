@@ -55,7 +55,7 @@ describe("SQLite installed Knowledge Package schema", () => {
     const database = openConfiguredSqliteDatabase(":memory:");
     try {
       migrate(database);
-      expect(readSchemaVersion(database)).toBe(9);
+      expect(readSchemaVersion(database)).toBe(10);
       expect(database.prepare("PRAGMA table_info(installed_knowledge_packages)").all()).toEqual([
         expect.objectContaining({ name: "package_id", type: "TEXT", notnull: 1, pk: 1 }),
         expect.objectContaining({ name: "package_version", type: "TEXT", notnull: 1, pk: 2 }),
@@ -199,7 +199,7 @@ describe("SQLite installed Knowledge Package schema", () => {
       migrate(database);
       migrate(database);
 
-      expect(readSchemaVersion(database)).toBe(9);
+      expect(readSchemaVersion(database)).toBe(10);
       for (const table of [
         "workspaces",
         "printers",

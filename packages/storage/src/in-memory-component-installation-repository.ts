@@ -24,6 +24,10 @@ export class MissingComponentInstallationPrinterStateError extends Error {
   }
 }
 
+export const deleteComponentInstallationForRollback = Symbol(
+  "deleteComponentInstallationForRollback"
+);
+
 function copyReference(reference: ComponentDefinitionReference): ComponentDefinitionReference {
   return Object.freeze({ ...reference });
 }
@@ -68,6 +72,10 @@ export class InMemoryComponentInstallationRepository implements ComponentInstall
   async findById(id: string): Promise<ComponentInstallation | undefined> {
     const installation = this.#installations.get(id);
     return installation ? copyInstallation(installation) : undefined;
+  }
+
+  [deleteComponentInstallationForRollback](installationId: string): void {
+    this.#installations.delete(installationId);
   }
 
   async listByPrinterStateId(printerStateId: string): Promise<ComponentInstallation[]> {

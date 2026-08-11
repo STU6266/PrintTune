@@ -42,7 +42,7 @@ describe("application storage lifecycle", () => {
     try {
       expect(existsSync(paths.dataDirectory)).toBe(true);
       expect(existsSync(paths.databasePath)).toBe(true);
-      expect(storage.database.schemaVersion()).toBe(9);
+      expect(storage.database.schemaVersion()).toBe(10);
       await expect(storage.database.createWorkspaceRepository().list()).resolves.toEqual([]);
     } finally {
       storage.close();
@@ -56,7 +56,7 @@ describe("application storage lifecycle", () => {
 
     const secondStorage = initializeApplicationStorage(appDataDirectory);
     try {
-      expect(secondStorage.database.schemaVersion()).toBe(9);
+      expect(secondStorage.database.schemaVersion()).toBe(10);
     } finally {
       secondStorage.close();
     }
@@ -83,6 +83,7 @@ describe("application storage lifecycle", () => {
       createPrinterRepository: vi.fn(),
       createPrinterStateRepository: vi.fn(),
       createPrinterStateSelectionPersistence: vi.fn(),
+      createPrinterStateTransitionLifecyclePersistence: vi.fn(),
       createPrinterCreationPersistence: vi.fn(),
       createComponentInstallationRepository: vi.fn(),
       createFieldClaimRepository: vi.fn(),

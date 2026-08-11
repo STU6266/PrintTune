@@ -468,6 +468,149 @@ const migration009: SqliteMigration = {
   },
 };
 
+const migration010: SqliteMigration = {
+  version: 10,
+  migrate(database) {
+    database.exec(`
+      CREATE UNIQUE INDEX printer_state_lineage_command_fk_idx
+        ON printer_state_lineage(printer_id, child_printer_state_id, parent_printer_state_id);
+
+      CREATE TABLE printer_state_transition_commands (
+        command_id TEXT PRIMARY KEY CHECK (length(command_id) > 0 AND trim(command_id) = command_id),
+        printer_id TEXT NOT NULL CHECK (length(printer_id) > 0 AND trim(printer_id) = printer_id),
+        source_printer_state_id TEXT NOT NULL
+          CHECK (length(source_printer_state_id) > 0 AND trim(source_printer_state_id) = source_printer_state_id),
+        target_printer_state_id TEXT NOT NULL UNIQUE
+          CHECK (length(target_printer_state_id) > 0 AND trim(target_printer_state_id) = target_printer_state_id),
+        FOREIGN KEY (printer_id) REFERENCES printers(id) ON DELETE CASCADE,
+        FOREIGN KEY (printer_id, target_printer_state_id, source_printer_state_id)
+          REFERENCES printer_state_lineage(
+            printer_id, child_printer_state_id, parent_printer_state_id
+          ) ON DELETE CASCADE
+      ) STRICT;
+
+      CREATE TEMP TABLE package_application_claims_v10_backup AS
+        SELECT application_id, claim_id, claim_order FROM package_application_claims;
+      DROP TABLE package_application_claims;
+
+      CREATE TABLE field_claims_v10 (
+        id TEXT PRIMARY KEY,
+        printer_state_id TEXT,
+        component_installation_id TEXT,
+        field_path TEXT NOT NULL,
+        value_type TEXT NOT NULL CHECK (value_type IN ('string', 'number', 'boolean')),
+        string_value TEXT,
+        number_value REAL,
+        boolean_value INTEGER,
+        unit TEXT CHECK (unit IN ('mm', 'mm/s', 'mm/s2', 'degC', 'mm3/s', 'ratio')),
+        source_type TEXT NOT NULL CHECK (
+          source_type IN (
+            'user_confirmed', 'user_entered', 'imported_file', 'slicer_profile',
+            'firmware_read', 'knowledge_package', 'component_definition', 'test_result',
+            'ai_unverified', 'state_transition'
+          )
+        ),
+        source_reference_id TEXT,
+        source_package_id TEXT,
+        source_package_version TEXT,
+        source_definition_id TEXT,
+        trust TEXT NOT NULL CHECK (
+          trust IN (
+            'developer_verified', 'customer_verified', 'user_confirmed', 'user_entered',
+            'imported_observation', 'ai_generated_unverified'
+          )
+        ),
+        confidence REAL CHECK (confidence >= 0 AND confidence <= 1),
+        created_at TEXT NOT NULL,
+        source_fact_id TEXT CHECK (
+          source_fact_id IS NULL OR (length(source_fact_id) > 0 AND trim(source_fact_id) = source_fact_id)
+        ),
+        source_claim_id TEXT CHECK (
+          source_claim_id IS NULL OR (length(source_claim_id) > 0 AND trim(source_claim_id) = source_claim_id)
+        ),
+        transition_command_id TEXT CHECK (
+          transition_command_id IS NULL OR (length(transition_command_id) > 0 AND trim(transition_command_id) = transition_command_id)
+        ),
+        FOREIGN KEY (printer_state_id) REFERENCES printer_states(id) ON DELETE CASCADE,
+        FOREIGN KEY (component_installation_id)
+          REFERENCES component_installations(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_claim_id) REFERENCES field_claims_v10(id),
+        FOREIGN KEY (transition_command_id)
+          REFERENCES printer_state_transition_commands(command_id),
+        CHECK (
+          (printer_state_id IS NOT NULL AND component_installation_id IS NULL)
+          OR (printer_state_id IS NULL AND component_installation_id IS NOT NULL)
+        ),
+        CHECK (
+          (value_type = 'string' AND string_value IS NOT NULL AND number_value IS NULL AND boolean_value IS NULL)
+          OR (value_type = 'number' AND string_value IS NULL AND number_value IS NOT NULL
+              AND number_value >= -1.7976931348623157e308
+              AND number_value <= 1.7976931348623157e308 AND boolean_value IS NULL)
+          OR (value_type = 'boolean' AND string_value IS NULL AND number_value IS NULL
+              AND boolean_value IN (0, 1))
+        ),
+        CHECK (unit IS NULL OR value_type = 'number'),
+        CHECK (
+          (source_type IN ('user_confirmed', 'user_entered', 'ai_unverified')
+            AND source_reference_id IS NULL AND source_package_id IS NULL
+            AND source_package_version IS NULL AND source_definition_id IS NULL
+            AND source_fact_id IS NULL AND source_claim_id IS NULL AND transition_command_id IS NULL)
+          OR (source_type IN ('imported_file', 'slicer_profile', 'firmware_read', 'test_result')
+            AND source_reference_id IS NOT NULL AND source_package_id IS NULL
+            AND source_package_version IS NULL AND source_definition_id IS NULL
+            AND source_fact_id IS NULL AND source_claim_id IS NULL AND transition_command_id IS NULL)
+          OR (source_type = 'knowledge_package' AND source_reference_id IS NULL
+            AND source_package_id IS NOT NULL AND source_package_version IS NOT NULL
+            AND source_definition_id IS NULL AND source_claim_id IS NULL AND transition_command_id IS NULL)
+          OR (source_type = 'component_definition' AND source_reference_id IS NULL
+            AND source_package_id IS NOT NULL AND source_package_version IS NOT NULL
+            AND source_definition_id IS NOT NULL AND source_fact_id IS NULL
+            AND source_claim_id IS NULL AND transition_command_id IS NULL)
+          OR (source_type = 'state_transition' AND source_reference_id IS NULL
+            AND source_package_id IS NULL AND source_package_version IS NULL
+            AND source_definition_id IS NULL AND source_fact_id IS NULL
+            AND source_claim_id IS NOT NULL AND transition_command_id IS NOT NULL)
+        )
+      ) STRICT;
+
+      INSERT INTO field_claims_v10 (
+        id, printer_state_id, component_installation_id, field_path, value_type,
+        string_value, number_value, boolean_value, unit, source_type, source_reference_id,
+        source_package_id, source_package_version, source_definition_id, trust, confidence,
+        created_at, source_fact_id, source_claim_id, transition_command_id
+      )
+      SELECT id, printer_state_id, component_installation_id, field_path, value_type,
+        string_value, number_value, boolean_value, unit, source_type, source_reference_id,
+        source_package_id, source_package_version, source_definition_id, trust, confidence,
+        created_at, source_fact_id, NULL, NULL
+      FROM field_claims;
+
+      DROP TABLE field_claims;
+      ALTER TABLE field_claims_v10 RENAME TO field_claims;
+
+      CREATE INDEX field_claims_printer_state_field_path_idx
+        ON field_claims(printer_state_id, field_path);
+      CREATE INDEX field_claims_component_installation_field_path_idx
+        ON field_claims(component_installation_id, field_path);
+
+      CREATE TABLE package_application_claims (
+        application_id TEXT NOT NULL,
+        claim_id TEXT NOT NULL,
+        claim_order INTEGER NOT NULL CHECK (claim_order >= 0),
+        PRIMARY KEY (application_id, claim_id),
+        UNIQUE (claim_id),
+        UNIQUE (application_id, claim_order),
+        FOREIGN KEY (application_id) REFERENCES package_applications(id),
+        FOREIGN KEY (claim_id) REFERENCES field_claims(id)
+      ) STRICT;
+      INSERT INTO package_application_claims (application_id, claim_id, claim_order)
+        SELECT application_id, claim_id, claim_order
+        FROM package_application_claims_v10_backup ORDER BY application_id, claim_order;
+      DROP TABLE package_application_claims_v10_backup;
+    `);
+  },
+};
+
 export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   migration001,
   migration002,
@@ -478,6 +621,7 @@ export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.fr
   migration007,
   migration008,
   migration009,
+  migration010,
 ]);
 
 export function readSchemaVersion(database: DatabaseSync): number {

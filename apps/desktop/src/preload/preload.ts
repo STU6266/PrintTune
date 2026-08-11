@@ -12,6 +12,10 @@ import {
   type PrinterTechnicalDataApi,
 } from "../shared/printer-technical-data-api";
 import { createWorkspaceApi, type WorkspaceApi } from "../shared/workspace-api";
+import {
+  createPrinterStateLifecycleApi,
+  type PrinterStateLifecycleApi,
+} from "../shared/printer-state-lifecycle-api";
 
 const appInfoApi: AppInfoApi = {
   async getAppInfo() {
@@ -28,18 +32,23 @@ const printerKnowledgeApi = createPrinterKnowledgeApi((channel, payload) =>
 const printerTechnicalDataApi = createPrinterTechnicalDataApi((channel, payload) =>
   ipcRenderer.invoke(channel, payload)
 );
+const printerStateLifecycleApi = createPrinterStateLifecycleApi((channel, payload) =>
+  ipcRenderer.invoke(channel, payload)
+);
 
 const printTuneApi: AppInfoApi &
   FeatureFlagsApi &
   WorkspaceApi &
   PrinterApi &
   PrinterKnowledgeApi &
+  PrinterStateLifecycleApi &
   PrinterTechnicalDataApi = Object.freeze({
   ...appInfoApi,
   ...featureFlagsApi,
   ...workspaceApi,
   ...printerApi,
   ...printerKnowledgeApi,
+  ...printerStateLifecycleApi,
   ...printerTechnicalDataApi,
 });
 

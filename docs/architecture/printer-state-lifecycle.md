@@ -7,10 +7,14 @@ or changing firmware does not create another Printer. `PrinterState` represents 
 technical snapshot of that Printer. Once recorded, a state is never edited to describe a later
 configuration; a meaningful technical change creates another state.
 
-The lineage and persistent working-selection foundation is implemented by migration 009 and the
-storage boundaries described below. The desktop flow still deliberately reads the earliest state and
-labels it **Initialer Druckerzustand**. That is a temporary single-state UI boundary, not an
-inference that the earliest state is current. No transition service or multi-state UI exists yet.
+Lineage and persistent working selection are implemented by migration 009. Migration 010 and the
+Core/storage lifecycle now implement deterministic transition planning, component snapshots,
+controlled Claim carry-forward, durable command idempotency, and atomic transition persistence. The
+desktop flow still deliberately reads the earliest state and labels it **Initialer Druckerzustand**.
+That is a temporary single-state UI boundary, not an inference that the earliest state is current.
+The authorized Main lifecycle service is exposed through three fixed, validated IPC/preload
+operations for overview, transition preparation, and transition creation. No multi-state UI exists
+yet.
 
 The lifecycle is append-only snapshot history, not generic event sourcing. A state stores the
 resulting snapshot identity and lineage; it does not attempt to record every action performed on a
@@ -38,6 +42,40 @@ will acquire a selection pointing to its existing initial state.
 
 “Working state” means the state used as the default target for new state-sensitive operations. It is
 not a mutable flag on `PrinterState`. Merely viewing history never changes this selection.
+
+## Main orchestration boundary
+
+`PrinterStateLifecycleApplicationService` is the authoritative Main boundary for state overview,
+transition preparation, and transition execution. Every read first requires an active Workspace and
+authorizes the Printer against it. Overview projects only State IDs, exact parent links, timestamps,
+and `isWorking` derived from persistent selection. Preparation reloads the exact selected State,
+projects component display snapshots without physical-instance or package-definition internals, and
+assesses exact state-targeted Claims through Core without exposing trust, confidence, provenance, or
+package identity.
+
+The renderer-facing transition command contains the caller-generated `transitionCommandId`, Printer
+ID, expected source State ID, a complete retain/remove decision set, and an opt-in list of exact
+source Claim IDs with applicability-confirmation booleans. It contains no target IDs, timestamps,
+domain objects, trust, provenance, or transition policy. Main reloads and reauthorizes every source
+component and Claim and builds the plan exclusively through Core. Arbitrary component additions are
+not exposed because no trusted catalog-backed component construction boundary exists yet.
+
+After Printer authorization, Main checks durable command completion before checking current State,
+loading transition inputs, reading the clock, or generating IDs. An exact retry therefore returns
+its original target even after later transitions and never changes selection. For a new command,
+`expectedSourcePrinterStateId` must equal persistent working selection or the preparation is stale.
+The renderer must retain one command ID for retries of the exact same intent and generate a new ID
+when intent changes. Main has no operation for selecting an old historical State.
+
+The fixed channels are `printer-state:overview:get`, `printer-state:transition-preparation:get`, and
+`printer-state:transition:create`; the narrow preload boundary exposes only their three
+corresponding lifecycle methods. Every IPC handler validates the trusted renderer sender and a
+closed request shape; every response is reconstructed into a closed, renderer-safe projection.
+Failures cross the boundary only as stable error codes. Repositories, database handles and paths,
+physical component-instance identity, package-definition references, Claim
+trust/confidence/provenance, and raw transition-policy metadata remain Main-only. The transition
+command cannot choose generated IDs or timestamps, inject Claims or domain objects, select an
+arbitrary historical State, or add arbitrary components.
 
 ## State shape and lineage
 
@@ -69,7 +107,7 @@ correcting wording does not mutate the immutable technical snapshot.
 
 ## Creating a state
 
-The future deliberate operation is conceptually:
+The implemented deliberate storage operation is conceptually:
 
 ```text
 createPrinterStateFromCurrent(expectedCurrentStateId, transitionPlan, commandId)
@@ -93,6 +131,26 @@ The transition plan identifies:
 - values that require user reconfirmation or remain missing.
 
 The plan is validated in Core/application logic. AI must not decide its contents or approve it.
+
+The implemented pure `PrinterStateTransitionPlan` requires the exact source State, one explicit
+`retain` or `remove` decision for every source ComponentInstallation, explicit added components, and
+an ordered list of exact Claim carry decisions. Omission never means removal. Retaining creates a
+new state-local installation ID while preserving the physical `componentInstanceId` and immutable
+identity snapshot. Removing creates no target row and leaves history untouched. Adding creates both
+a fresh installation ID and fresh physical-instance ID. Reinstallation of an instance known only
+from an older non-source State remains deferred; Alpha does not perform inventory discovery.
+
+The storage lifecycle accepts a completed plan only when its source is still the persistent working
+State. A competing new command planned from a stale source fails instead of creating a branch. One
+transaction creates the child State and lineage, completed command, component snapshots, carried
+Claims, and finally advances working selection. Any failure rolls all of them back.
+
+Every operation has an opaque durable `transitionCommandId`. Only successful commands are stored.
+Retry lookup happens before working-State validation: the same command and same Printer/source
+returns its original target as `already_completed`, creates nothing, and never reselects that target
+if later transitions have advanced selection. Reusing the ID for another Printer or source is a
+conflict. Alpha intentionally has no request fingerprint; a changed transition intent must use a new
+command ID.
 
 ## Claims and controlled carry-forward
 
@@ -118,9 +176,9 @@ explicit per-state application flow.
 The implemented transition policy vocabulary is deliberately small:
 
 - `safe_to_carry`: unchanged state-level evidence may be carried deterministically;
-- `component_dependent`: never auto-carry; a future transition plan must explicitly confirm that the
+- `component_dependent`: never auto-carry; the transition plan must explicitly confirm that the
   relevant installation/configuration remains applicable;
-- `configuration_dependent`: never auto-carry; a future transition plan must explicitly confirm the
+- `configuration_dependent`: never auto-carry; the transition plan must explicitly confirm the
   relevant machine or firmware configuration remains applicable; and
 - `require_reconfirmation`: never create a carried Claim, even from a generic applicability
   confirmation; establish a new independent Claim for the new state.
@@ -155,16 +213,17 @@ use the transition timestamp and a fresh injected Claim ID, target the exact new
 reference the immediately preceding source Claim. Resolution does not traverse this provenance or
 PrinterState ancestry.
 
-SQLite does not yet persist `state_transition` provenance. Migration 010 must add a closed storage
-representation for the source Claim and transition command before the atomic transition lifecycle
-can store carried Claims. The current `field_claims.source_type` CHECK excludes this discriminator,
-so SQLite cannot safely extend it with `ALTER TABLE` alone: Migration 010 must transactionally
-rebuild `field_claims` (preserving all existing rows/indexes) or introduce an equally explicit
-normalized representation. The preferred rebuilt shape adds nullable `source_claim_id` and
-`transition_command_id` columns guarded by provenance CHECKs. `source_claim_id` should reference the
-globally unique `field_claims(id)` with restrictive/no-action deletion; no composite key is needed.
-The command ID should reference durable transition-command bookkeeping. Once that lifecycle exists,
-repeating one `transitionCommandId` must return the same completed transition result.
+Migration 010 transactionally rebuilds `field_claims` because its previous `source_type` CHECK could
+not be extended safely with `ALTER TABLE`. It preserves existing rows, indexes, and ordered
+PackageApplication links, then adds `state_transition`, nullable `source_claim_id`, and
+`transition_command_id` with discriminator consistency checks. The source Claim uses a restrictive
+self-reference; the command reference points to the completed command table. Existing provenance has
+both columns absent. Generic FieldClaim repositories reconstruct transition evidence but reject
+writing it; only the atomic transition lifecycle may insert it.
+
+`printer_state_transition_commands` stores only `command_id`, Printer, exact source State, and
+unique target State. A composite foreign key ties that tuple to actual parent lineage. Initial
+States have no command, and no pending/failed/cancelled command rows exist.
 
 ### Package Claims and PackageApplication
 
@@ -400,8 +459,8 @@ proceed in these focused slices:
 
 - get the working state, list history, prepare/confirm a transition, and inspect an exact state;
 - reauthorize Workspace/Printer/state ownership and expected selection;
-- add fixed validated IPC/preload operations without repositories or raw state mutation in the
-  renderer.
+- fixed validated IPC/preload operations provide overview, preparation, and create without exposing
+  repositories or raw state mutation in the renderer.
 
 ### 6.2d — Printer detail history and transition UI
 
@@ -417,6 +476,6 @@ imports or recommendations depend on the current `slicer.*` PrinterState targets
 
 ## Deferred boundaries
 
-This decision adds no migration, repository, Core implementation, IPC, preload API, React UI,
-importer, diagnostic/recommendation implementation, AI/chat behavior, network capability, printer
+This decision adds no migration, repository, Core implementation, React UI, importer,
+diagnostic/recommendation implementation, AI/chat behavior, network capability, printer
 connectivity/control, real Knowledge Package, or TestWorkflow asset.
