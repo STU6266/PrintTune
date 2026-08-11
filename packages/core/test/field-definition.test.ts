@@ -3,6 +3,7 @@ import type {
   FieldDefinition,
   FieldDefinitionTargetType,
   FieldDefinitionValueType,
+  FieldTransitionPolicy,
   ResolutionPolicyKind,
 } from "@printtune/contracts";
 import { describe, expect, it } from "vitest";
@@ -13,6 +14,7 @@ import {
   InvalidFieldDefinitionTargetTypeError,
   InvalidFieldDefinitionUnitError,
   InvalidFieldDefinitionValueTypeError,
+  InvalidFieldTransitionPolicyError,
   InvalidResolutionPolicyError,
   createFieldDefinition,
   findCoreFieldDefinition,
@@ -30,6 +32,7 @@ function definitionInput(overrides: Partial<FieldDefinition> = {}): FieldDefinit
     valueType: "number",
     unit: "mm",
     resolutionPolicy: { kind: "exact_match" },
+    transitionPolicy: "require_reconfirmation",
     ...overrides,
   };
 }
@@ -55,6 +58,7 @@ describe("createFieldDefinition", () => {
         targetType: "printer_state",
         valueType,
         resolutionPolicy: { kind: "exact_match" },
+        transitionPolicy: "require_reconfirmation",
       });
     }
   );
@@ -116,27 +120,89 @@ describe("createFieldDefinition", () => {
     expect(() =>
       createFieldDefinition({ ...definitionInput(), label: "Nozzle" } as FieldDefinition)
     ).toThrow(InvalidFieldDefinitionShapeError);
+    expect(() =>
+      createFieldDefinition(
+        definitionInput({ transitionPolicy: "implicit" as FieldTransitionPolicy })
+      )
+    ).toThrow(InvalidFieldTransitionPolicyError);
   });
 });
 
 const EXPECTED_CORE_DEFINITIONS = [
-  ["component.probe.offset.x", "component_installation", "number", "mm", "exact_match"],
-  ["firmware.motion.max-acceleration", "printer_state", "number", "mm/s2", "exact_match"],
-  ["firmware.motion.max-velocity", "printer_state", "number", "mm/s", "exact_match"],
-  ["firmware.type", "printer_state", "string", undefined, "exact_match"],
-  ["printer.bed.max-temperature", "printer_state", "number", "degC", "safety_upper_bound"],
+  [
+    "component.probe.offset.x",
+    "component_installation",
+    "number",
+    "mm",
+    "exact_match",
+    "require_reconfirmation",
+  ],
+  [
+    "firmware.motion.max-acceleration",
+    "printer_state",
+    "number",
+    "mm/s2",
+    "exact_match",
+    "require_reconfirmation",
+  ],
+  [
+    "firmware.motion.max-velocity",
+    "printer_state",
+    "number",
+    "mm/s",
+    "exact_match",
+    "require_reconfirmation",
+  ],
+  ["firmware.type", "printer_state", "string", undefined, "exact_match", "configuration_dependent"],
+  [
+    "printer.bed.max-temperature",
+    "printer_state",
+    "number",
+    "degC",
+    "safety_upper_bound",
+    "require_reconfirmation",
+  ],
   [
     "printer.extruder.type",
     "printer_state",
     "string",
     undefined,
     "installed_hardware_confirmation",
+    "component_dependent",
   ],
-  ["printer.hotend.max-temperature", "printer_state", "number", "degC", "safety_upper_bound"],
-  ["printer.nozzle.diameter", "printer_state", "number", "mm", "installed_hardware_confirmation"],
-  ["slicer.layer-height", "printer_state", "number", "mm", "exact_match"],
-  ["slicer.retraction.distance", "printer_state", "number", "mm", "exact_match"],
-  ["slicer.retraction.speed", "printer_state", "number", "mm/s", "exact_match"],
+  [
+    "printer.hotend.max-temperature",
+    "printer_state",
+    "number",
+    "degC",
+    "safety_upper_bound",
+    "require_reconfirmation",
+  ],
+  [
+    "printer.nozzle.diameter",
+    "printer_state",
+    "number",
+    "mm",
+    "installed_hardware_confirmation",
+    "component_dependent",
+  ],
+  ["slicer.layer-height", "printer_state", "number", "mm", "exact_match", "require_reconfirmation"],
+  [
+    "slicer.retraction.distance",
+    "printer_state",
+    "number",
+    "mm",
+    "exact_match",
+    "require_reconfirmation",
+  ],
+  [
+    "slicer.retraction.speed",
+    "printer_state",
+    "number",
+    "mm/s",
+    "exact_match",
+    "require_reconfirmation",
+  ],
 ] as const;
 
 describe("Core FieldDefinition registry", () => {
@@ -147,6 +213,7 @@ describe("Core FieldDefinition registry", () => {
       definition.valueType,
       definition.unit,
       definition.resolutionPolicy.kind,
+      definition.transitionPolicy,
     ]);
     expect(actual).toEqual(EXPECTED_CORE_DEFINITIONS);
   });

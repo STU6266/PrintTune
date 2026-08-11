@@ -24,12 +24,18 @@ interface FieldDefinition {
   readonly valueType: FieldValueType;
   readonly unit?: CanonicalUnit;
   readonly resolutionPolicy: ResolutionPolicy;
+  readonly transitionPolicy: FieldTransitionPolicy;
 }
 ```
 
 `fieldPath` is the stable identity. A separate ID would duplicate it and introduce an unnecessary
 mapping. Definitions and their nested policy values are validated, defensively copied, and deeply
 frozen when the contract is implemented.
+
+`transitionPolicy` is one of `safe_to_carry`, `component_dependent`, `configuration_dependent`, or
+`require_reconfirmation`. It is required and has no default. This metadata governs deterministic
+evidence carry-forward between immutable PrinterStates; it is independent of value resolution. AI,
+packages, and callers cannot override it.
 
 No display label, description, default value, current value, provenance, confidence, package ID, or
 arbitrary metadata belongs in the initial contract.
@@ -204,22 +210,27 @@ from a path. This keeps the resolver pure and permits direct deterministic tests
 The initial registry proves scalar, unit, target, installed-hardware, exact-match, and safety
 behavior without attempting to catalog every printer setting.
 
-| fieldPath                          | target                   | type     | unit    | policy                            | technical meaning                                   |
-| ---------------------------------- | ------------------------ | -------- | ------- | --------------------------------- | --------------------------------------------------- |
-| `printer.nozzle.diameter`          | `printer_state`          | `number` | `mm`    | `installed_hardware_confirmation` | Diameter of the nozzle installed for this state     |
-| `printer.extruder.type`            | `printer_state`          | `string` | —       | `installed_hardware_confirmation` | Classification of the installed extrusion mechanism |
-| `printer.hotend.max-temperature`   | `printer_state`          | `number` | `degC`  | `safety_upper_bound`              | Maximum permitted hotend temperature                |
-| `printer.bed.max-temperature`      | `printer_state`          | `number` | `degC`  | `safety_upper_bound`              | Maximum permitted heated-bed temperature            |
-| `firmware.type`                    | `printer_state`          | `string` | —       | `exact_match`                     | Firmware family observed for this state             |
-| `firmware.motion.max-velocity`     | `printer_state`          | `number` | `mm/s`  | `exact_match`                     | Configured firmware velocity ceiling                |
-| `firmware.motion.max-acceleration` | `printer_state`          | `number` | `mm/s2` | `exact_match`                     | Configured firmware acceleration ceiling            |
-| `slicer.retraction.distance`       | `printer_state`          | `number` | `mm`    | `exact_match`                     | Retraction distance associated with this state      |
-| `slicer.retraction.speed`          | `printer_state`          | `number` | `mm/s`  | `exact_match`                     | Retraction speed associated with this state         |
-| `slicer.layer-height`              | `printer_state`          | `number` | `mm`    | `exact_match`                     | Layer height associated with this state             |
-| `component.probe.offset.x`         | `component_installation` | `number` | `mm`    | `exact_match`                     | X offset recorded for one installed probe           |
+| fieldPath                          | target                   | type     | unit    | resolution policy                 | transition policy         |
+| ---------------------------------- | ------------------------ | -------- | ------- | --------------------------------- | ------------------------- |
+| `printer.nozzle.diameter`          | `printer_state`          | `number` | `mm`    | `installed_hardware_confirmation` | `component_dependent`     |
+| `printer.extruder.type`            | `printer_state`          | `string` | —       | `installed_hardware_confirmation` | `component_dependent`     |
+| `printer.hotend.max-temperature`   | `printer_state`          | `number` | `degC`  | `safety_upper_bound`              | `require_reconfirmation`  |
+| `printer.bed.max-temperature`      | `printer_state`          | `number` | `degC`  | `safety_upper_bound`              | `require_reconfirmation`  |
+| `firmware.type`                    | `printer_state`          | `string` | —       | `exact_match`                     | `configuration_dependent` |
+| `firmware.motion.max-velocity`     | `printer_state`          | `number` | `mm/s`  | `exact_match`                     | `require_reconfirmation`  |
+| `firmware.motion.max-acceleration` | `printer_state`          | `number` | `mm/s2` | `exact_match`                     | `require_reconfirmation`  |
+| `slicer.retraction.distance`       | `printer_state`          | `number` | `mm`    | `exact_match`                     | `require_reconfirmation`  |
+| `slicer.retraction.speed`          | `printer_state`          | `number` | `mm/s`  | `exact_match`                     | `require_reconfirmation`  |
+| `slicer.layer-height`              | `printer_state`          | `number` | `mm`    | `exact_match`                     | `require_reconfirmation`  |
+| `component.probe.offset.x`         | `component_installation` | `number` | `mm`    | `exact_match`                     | `require_reconfirmation`  |
 
 The table defines representation and resolution semantics only. It supplies no recommended values,
 manufacturer defaults, compatibility claims, or printer-specific knowledge.
+
+The current `slicer.*` fields remain compatible historical PrinterState data and require
+reconfirmation across state transitions. They will move to a future PrintConfiguration/SlicerProfile
+domain before broad slicer import work; this task does not migrate or remove them. Further
+transition behavior is documented in [`printer-state-lifecycle.md`](printer-state-lifecycle.md).
 
 ## Identity, material, and tests
 

@@ -2,12 +2,16 @@ import type { PrinterState } from "@printtune/contracts";
 
 import {
   DuplicatePrinterStateError,
+  PrinterStateParentNotFoundError,
+  PrinterStateParentOwnershipError,
   type PrinterStateRepository,
 } from "./printer-state-repository.js";
 
 function copyState(state: PrinterState): PrinterState {
   return { ...state };
 }
+
+export const deletePrinterStateForRollback = Symbol("deletePrinterStateForRollback");
 
 function compare(left: PrinterState, right: PrinterState): number {
   return left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id);
@@ -21,7 +25,19 @@ export class InMemoryPrinterStateRepository implements PrinterStateRepository {
       throw new DuplicatePrinterStateError(state.id);
     }
 
+    if (state.parentPrinterStateId !== undefined) {
+      const parent = this.#states.get(state.parentPrinterStateId);
+      if (!parent) throw new PrinterStateParentNotFoundError(state.parentPrinterStateId);
+      if (parent.printerId !== state.printerId) {
+        throw new PrinterStateParentOwnershipError(state.id, state.parentPrinterStateId);
+      }
+    }
+
     this.#states.set(state.id, copyState(state));
+  }
+
+  [deletePrinterStateForRollback](stateId: string): void {
+    this.#states.delete(stateId);
   }
 
   async findById(id: string): Promise<PrinterState | undefined> {

@@ -16,6 +16,7 @@ export {
 } from "./printer.js";
 export {
   InvalidPrinterStateIdError,
+  InvalidPrinterStateParentIdError,
   InvalidPrinterStatePrinterIdError,
   InvalidPrinterStateTimestampError,
   createPrinterState,
@@ -69,9 +70,19 @@ export {
   InvalidFieldDefinitionTargetTypeError,
   InvalidFieldDefinitionUnitError,
   InvalidFieldDefinitionValueTypeError,
+  InvalidFieldTransitionPolicyError,
   createFieldDefinition,
   type CreateFieldDefinitionInput,
 } from "./field-definition.js";
+export {
+  FieldClaimCarryForwardError,
+  assessFieldClaimCarryForward,
+  createCarriedForwardFieldClaim,
+  createCarriedForwardFieldClaims,
+  type CreateCarriedForwardFieldClaimInput,
+  type CreateCarriedForwardFieldClaimsInput,
+  type FieldClaimCarryForwardAssessment,
+} from "./field-claim-carry-forward.js";
 export {
   findCoreFieldDefinition,
   listCoreFieldDefinitions,

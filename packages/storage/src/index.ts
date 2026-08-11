@@ -8,11 +8,15 @@ export {
 } from "./in-memory-component-installation-repository.js";
 export {
   InMemoryPrinterCreationPersistence,
+  InvalidInitialPrinterStateError,
   type PrinterCreationPersistence,
 } from "./printer-creation-persistence.js";
 export { openPrintTuneDatabase } from "./printtune-database.js";
 export type { PrintTuneDatabase } from "./printtune-database.js";
-export { UnsupportedSchemaVersionError } from "./sqlite-migrations.js";
+export {
+  AmbiguousLegacyPrinterStateError,
+  UnsupportedSchemaVersionError,
+} from "./sqlite-migrations.js";
 export {
   SqliteWorkspaceRepository,
   WorkspaceDataIntegrityError,
@@ -21,6 +25,8 @@ export type { WorkspaceRepository } from "./workspace-repository.js";
 export type { PrinterRepository } from "./printer-repository.js";
 export {
   DuplicatePrinterStateError,
+  PrinterStateParentNotFoundError,
+  PrinterStateParentOwnershipError,
   type PrinterStateRepository,
 } from "./printer-state-repository.js";
 export { PrinterDataIntegrityError, SqlitePrinterRepository } from "./sqlite-printer-repository.js";
@@ -29,6 +35,16 @@ export {
   SqlitePrinterStateRepository,
 } from "./sqlite-printer-state-repository.js";
 export { SqlitePrinterCreationPersistence } from "./sqlite-printer-creation-persistence.js";
+export {
+  InMemoryPrinterStateSelectionPersistence,
+  PrinterStateSelectionOwnershipError,
+  PrinterStateSelectionStateNotFoundError,
+  type PrinterStateSelectionPersistence,
+} from "./printer-state-selection-persistence.js";
+export {
+  PrinterStateSelectionDataIntegrityError,
+  SqlitePrinterStateSelectionPersistence,
+} from "./sqlite-printer-state-selection-persistence.js";
 export {
   DuplicateComponentInstallationError,
   DuplicateComponentRoleError,

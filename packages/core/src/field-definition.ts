@@ -2,6 +2,7 @@ import type {
   CanonicalUnit,
   FieldDefinition,
   FieldDefinitionTargetType,
+  FieldTransitionPolicy,
   FieldDefinitionValueType,
 } from "@printtune/contracts";
 
@@ -45,12 +46,25 @@ export class InvalidFieldDefinitionShapeError extends Error {
   }
 }
 
+export class InvalidFieldTransitionPolicyError extends Error {
+  override readonly name = "InvalidFieldTransitionPolicyError";
+  constructor() {
+    super("FieldDefinition transition policy must be supported");
+  }
+}
+
 const TARGET_TYPES = new Set<FieldDefinitionTargetType>([
   "printer_state",
   "component_installation",
 ]);
 const VALUE_TYPES = new Set<FieldDefinitionValueType>(["string", "number", "boolean"]);
 const CANONICAL_UNITS = new Set<CanonicalUnit>(["mm", "mm/s", "mm/s2", "degC", "mm3/s", "ratio"]);
+const TRANSITION_POLICIES = new Set<FieldTransitionPolicy>([
+  "safe_to_carry",
+  "component_dependent",
+  "configuration_dependent",
+  "require_reconfirmation",
+]);
 
 export function createFieldDefinition(input: CreateFieldDefinitionInput): FieldDefinition {
   if (!isRecord(input)) {
@@ -61,6 +75,7 @@ export function createFieldDefinition(input: CreateFieldDefinitionInput): FieldD
     "targetType",
     "valueType",
     "resolutionPolicy",
+    "transitionPolicy",
   ]);
   const hasUnitShape = hasExactKeys(input, [
     "fieldPath",
@@ -68,6 +83,7 @@ export function createFieldDefinition(input: CreateFieldDefinitionInput): FieldD
     "valueType",
     "unit",
     "resolutionPolicy",
+    "transitionPolicy",
   ]);
   if (!hasUnitlessShape && !hasUnitShape) {
     throw new InvalidFieldDefinitionShapeError();
@@ -88,11 +104,15 @@ export function createFieldDefinition(input: CreateFieldDefinitionInput): FieldD
   }
 
   const resolutionPolicy = createResolutionPolicy(input.resolutionPolicy);
+  if (!TRANSITION_POLICIES.has(input.transitionPolicy as FieldTransitionPolicy)) {
+    throw new InvalidFieldTransitionPolicyError();
+  }
   return Object.freeze({
     fieldPath,
     targetType: input.targetType as FieldDefinitionTargetType,
     valueType: input.valueType as FieldDefinitionValueType,
     ...(input.unit === undefined ? {} : { unit: input.unit as CanonicalUnit }),
     resolutionPolicy,
+    transitionPolicy: input.transitionPolicy as FieldTransitionPolicy,
   });
 }

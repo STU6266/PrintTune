@@ -21,7 +21,8 @@ export type ClaimSourceType =
   | "knowledge_package"
   | "component_definition"
   | "test_result"
-  | "ai_unverified";
+  | "ai_unverified"
+  | "state_transition";
 
 export type ClaimSourceReference =
   | { readonly type: "import_snapshot"; readonly id: string }
@@ -39,7 +40,12 @@ export type ClaimSourceReference =
       readonly packageVersion: string;
       readonly definitionId: string;
     }
-  | { readonly type: "test_run"; readonly id: string };
+  | { readonly type: "test_run"; readonly id: string }
+  | {
+      readonly type: "state_transition";
+      readonly sourceClaimId: string;
+      readonly transitionCommandId: string;
+    };
 
 export interface ClaimProvenance {
   readonly sourceType: ClaimSourceType;

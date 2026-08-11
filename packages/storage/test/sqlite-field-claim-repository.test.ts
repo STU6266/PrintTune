@@ -68,6 +68,37 @@ describeFieldClaimRepository("SqliteFieldClaimRepository", async () => {
 });
 
 describe("SqliteFieldClaimRepository integration", () => {
+  it("does not inherit a parent State's Claims into its child", async () => {
+    const database = openPrintTuneDatabase(":memory:");
+    database.migrate();
+    try {
+      await seedHierarchy(database);
+      await database.createPrinterStateRepository().create(
+        createPrinterState({
+          id: "state-b",
+          printerId: "printer-a",
+          parentPrinterStateId: "state-a",
+          timestamp: "2026-08-08T11:00:00.000Z",
+        })
+      );
+      const repository = database.createFieldClaimRepository();
+      await repository.create(claim("claim-on-a"));
+
+      const childTarget = { type: "printer_state" as const, printerStateId: "state-b" };
+      await expect(repository.listByTarget(childTarget)).resolves.toEqual([]);
+      expect(
+        resolveFieldClaims({
+          target: childTarget,
+          fieldPath: "printer.nozzle.diameter",
+          claims: await repository.listByTargetAndFieldPath(childTarget, "printer.nozzle.diameter"),
+          policy: { kind: "installed_hardware_confirmation" },
+        })
+      ).toMatchObject({ status: "missing", reasonCode: "no_usable_claims" });
+    } finally {
+      database.close();
+    }
+  });
+
   it("rejects missing PrinterState and ComponentInstallation targets", async () => {
     const database = openPrintTuneDatabase(":memory:");
     database.migrate();

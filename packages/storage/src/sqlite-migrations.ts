@@ -395,6 +395,79 @@ const migration008: SqliteMigration = {
   },
 };
 
+export class AmbiguousLegacyPrinterStateError extends Error {
+  override readonly name = "AmbiguousLegacyPrinterStateError";
+
+  constructor(
+    readonly printerId: string,
+    readonly stateCount: number
+  ) {
+    super(
+      `Cannot establish working PrinterState for legacy Printer ${printerId}: expected exactly one State, found ${stateCount}`
+    );
+  }
+}
+
+const migration009: SqliteMigration = {
+  version: 9,
+  migrate(database) {
+    const invalid = database
+      .prepare(
+        `SELECT p.id AS printer_id, count(ps.id) AS state_count
+         FROM printers p
+         LEFT JOIN printer_states ps ON ps.printer_id = p.id
+         GROUP BY p.id
+         HAVING count(ps.id) != 1
+         ORDER BY p.id
+         LIMIT 1`
+      )
+      .get() as { printer_id?: unknown; state_count?: unknown } | undefined;
+    if (invalid !== undefined) {
+      if (typeof invalid.printer_id !== "string" || typeof invalid.state_count !== "number") {
+        throw new Error("Unable to validate legacy PrinterState counts");
+      }
+      throw new AmbiguousLegacyPrinterStateError(invalid.printer_id, invalid.state_count);
+    }
+
+    database.exec(`
+      CREATE TABLE printer_state_lineage (
+        printer_id TEXT NOT NULL
+          CHECK (length(printer_id) > 0 AND trim(printer_id) = printer_id),
+        child_printer_state_id TEXT PRIMARY KEY
+          CHECK (
+            length(child_printer_state_id) > 0
+            AND trim(child_printer_state_id) = child_printer_state_id
+          ),
+        parent_printer_state_id TEXT NOT NULL
+          CHECK (
+            length(parent_printer_state_id) > 0
+            AND trim(parent_printer_state_id) = parent_printer_state_id
+          ),
+        CHECK (child_printer_state_id != parent_printer_state_id),
+        FOREIGN KEY (printer_id, child_printer_state_id)
+          REFERENCES printer_states(printer_id, id) ON DELETE CASCADE,
+        FOREIGN KEY (printer_id, parent_printer_state_id)
+          REFERENCES printer_states(printer_id, id) ON DELETE CASCADE
+      ) STRICT;
+
+      CREATE TABLE printer_state_selections (
+        printer_id TEXT PRIMARY KEY
+          CHECK (length(printer_id) > 0 AND trim(printer_id) = printer_id),
+        printer_state_id TEXT NOT NULL
+          CHECK (length(printer_state_id) > 0 AND trim(printer_state_id) = printer_state_id),
+        FOREIGN KEY (printer_id) REFERENCES printers(id) ON DELETE CASCADE,
+        FOREIGN KEY (printer_id, printer_state_id)
+          REFERENCES printer_states(printer_id, id) ON DELETE CASCADE
+      ) STRICT;
+
+      INSERT INTO printer_state_selections (printer_id, printer_state_id)
+      SELECT p.id, ps.id
+      FROM printers p
+      JOIN printer_states ps ON ps.printer_id = p.id;
+    `);
+  },
+};
+
 export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   migration001,
   migration002,
@@ -404,6 +477,7 @@ export const PRINTTUNE_SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.fr
   migration006,
   migration007,
   migration008,
+  migration009,
 ]);
 
 export function readSchemaVersion(database: DatabaseSync): number {

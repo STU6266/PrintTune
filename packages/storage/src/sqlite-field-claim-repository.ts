@@ -261,6 +261,11 @@ function provenanceColumns(
       return [null, reference.packageId, reference.packageVersion, null, reference.factId ?? null];
     case "component_definition":
       return [null, reference.packageId, reference.packageVersion, reference.definitionId, null];
+    case "state_transition":
+      throw new FieldClaimDataIntegrityError(
+        "provenance",
+        "state-transition provenance requires Migration 010"
+      );
   }
 }
 

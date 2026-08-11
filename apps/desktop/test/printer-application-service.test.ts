@@ -8,6 +8,7 @@ import {
   InMemoryPrinterCreationPersistence,
   InMemoryPrinterRepository,
   InMemoryPrinterStateRepository,
+  InMemoryPrinterStateSelectionPersistence,
   openPrintTuneDatabase,
   type PrinterCreationPersistence,
 } from "@printtune/storage";
@@ -31,7 +32,10 @@ describe("PrinterApplicationService", () => {
   it("creates a deterministic Printer with exactly one initial state in memory", async () => {
     const printers = new InMemoryPrinterRepository();
     const states = new InMemoryPrinterStateRepository();
-    const service = deterministicService(new InMemoryPrinterCreationPersistence(printers, states));
+    const selection = new InMemoryPrinterStateSelectionPersistence(states);
+    const service = deterministicService(
+      new InMemoryPrinterCreationPersistence(printers, states, selection)
+    );
 
     await expect(
       service.createPrinterWithInitialState({
@@ -53,6 +57,7 @@ describe("PrinterApplicationService", () => {
       },
     });
     await expect(states.listByPrinterId(PRINTER_ID)).resolves.toHaveLength(1);
+    await expect(selection.getSelectedStateId(PRINTER_ID)).resolves.toBe(STATE_ID);
   });
 
   it.each([
@@ -71,8 +76,11 @@ describe("PrinterApplicationService", () => {
   it("removes an in-memory Printer when initial-state creation fails", async () => {
     const printers = new InMemoryPrinterRepository();
     const states = new InMemoryPrinterStateRepository();
+    const selection = new InMemoryPrinterStateSelectionPersistence(states);
     await states.create({ id: STATE_ID, printerId: "another-printer", createdAt: TIMESTAMP });
-    const service = deterministicService(new InMemoryPrinterCreationPersistence(printers, states));
+    const service = deterministicService(
+      new InMemoryPrinterCreationPersistence(printers, states, selection)
+    );
 
     await expect(
       service.createPrinterWithInitialState({ workspaceId: "workspace-a", printerName: "Drucker" })
@@ -81,6 +89,27 @@ describe("PrinterApplicationService", () => {
     await expect(states.findById(STATE_ID)).resolves.toMatchObject({
       printerId: "another-printer",
     });
+  });
+
+  it("rolls back all in-memory rows when working-state selection initialization fails", async () => {
+    const printers = new InMemoryPrinterRepository();
+    const states = new InMemoryPrinterStateRepository();
+    class FailingSelection extends InMemoryPrinterStateSelectionPersistence {
+      override async setSelectedState(): Promise<void> {
+        throw new Error("selection failed");
+      }
+    }
+    const selection = new FailingSelection(states);
+    const service = deterministicService(
+      new InMemoryPrinterCreationPersistence(printers, states, selection)
+    );
+
+    await expect(
+      service.createPrinterWithInitialState({ workspaceId: "workspace-a", printerName: "Drucker" })
+    ).rejects.toThrow("selection failed");
+    await expect(printers.findById(PRINTER_ID)).resolves.toBeUndefined();
+    await expect(states.findById(STATE_ID)).resolves.toBeUndefined();
+    await expect(selection.getSelectedStateId(PRINTER_ID)).resolves.toBeUndefined();
   });
 
   it("commits both SQLite records and preserves them across reopen", async () => {
@@ -109,6 +138,9 @@ describe("PrinterApplicationService", () => {
         await expect(
           second.createPrinterStateRepository().listByPrinterId(PRINTER_ID)
         ).resolves.toEqual([created.initialState]);
+        await expect(
+          second.createPrinterStateSelectionPersistence().getSelectedStateId(PRINTER_ID)
+        ).resolves.toBe(STATE_ID);
       } finally {
         second.close();
       }
@@ -128,6 +160,9 @@ describe("PrinterApplicationService", () => {
     await expect(database.createPrinterRepository().findById(PRINTER_ID)).resolves.toBeUndefined();
     await expect(
       database.createPrinterStateRepository().findById(STATE_ID)
+    ).resolves.toBeUndefined();
+    await expect(
+      database.createPrinterStateSelectionPersistence().getSelectedStateId(PRINTER_ID)
     ).resolves.toBeUndefined();
     database.close();
   });
@@ -168,6 +203,9 @@ describe("PrinterApplicationService", () => {
         printerId: "existing-printer",
       }
     );
+    await expect(
+      database.createPrinterStateSelectionPersistence().getSelectedStateId(PRINTER_ID)
+    ).resolves.toBeUndefined();
     database.close();
   });
 });

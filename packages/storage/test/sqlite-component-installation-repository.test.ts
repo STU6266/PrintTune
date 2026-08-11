@@ -68,6 +68,38 @@ describeComponentInstallationRepository("SqliteComponentInstallationRepository",
 });
 
 describe("SQLite ComponentInstallation repository integration", () => {
+  it("does not clone parent installations when a child State is created", async () => {
+    const database = openPrintTuneDatabase(":memory:");
+    database.migrate();
+    try {
+      await seedHierarchy(database);
+      const installations = database.createComponentInstallationRepository();
+      await installations.create(
+        createComponentInstallation({
+          id: "installation-parent",
+          printerStateId: "state-early",
+          componentInstanceId: "instance-parent",
+          role: "toolhead.hotend",
+          kind: "hotend",
+          displayName: "Hotend",
+        })
+      );
+      await database.createPrinterStateRepository().create(
+        createPrinterState({
+          id: "state-child",
+          printerId: "printer-a",
+          parentPrinterStateId: "state-early",
+          timestamp: LATE,
+        })
+      );
+
+      await expect(installations.listByPrinterStateId("state-child")).resolves.toEqual([]);
+      await expect(installations.listByPrinterStateId("state-early")).resolves.toHaveLength(1);
+    } finally {
+      database.close();
+    }
+  });
+
   it("rejects an unknown PrinterState", async () => {
     const database = openPrintTuneDatabase(":memory:");
     database.migrate();

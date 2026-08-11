@@ -120,6 +120,7 @@ const REFERENCE_TYPE_BY_SOURCE = {
   knowledge_package: "knowledge_package",
   component_definition: "component_definition",
   test_result: "test_run",
+  state_transition: "state_transition",
 } as const satisfies Partial<Record<ClaimSourceType, ClaimSourceReference["type"]>>;
 const SOURCES_WITHOUT_REFERENCE = new Set<ClaimSourceType>([
   "user_confirmed",
@@ -191,6 +192,21 @@ function copySourceReference(reference: unknown): ClaimSourceReference {
         ),
         definitionId: validateNormalizedId(
           reference.definitionId,
+          () => new InvalidFieldClaimProvenanceError()
+        ),
+      });
+    case "state_transition":
+      if (!hasExactKeys(reference, ["type", "sourceClaimId", "transitionCommandId"])) {
+        throw new InvalidFieldClaimProvenanceError();
+      }
+      return Object.freeze({
+        type: "state_transition",
+        sourceClaimId: validateNormalizedId(
+          reference.sourceClaimId,
+          () => new InvalidFieldClaimProvenanceError()
+        ),
+        transitionCommandId: validateNormalizedId(
+          reference.transitionCommandId,
           () => new InvalidFieldClaimProvenanceError()
         ),
       });

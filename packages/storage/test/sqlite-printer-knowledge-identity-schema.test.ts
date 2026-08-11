@@ -119,7 +119,7 @@ describe("SQLite PrinterKnowledgeIdentity schema", () => {
 
       migrate(database);
 
-      expect(readSchemaVersion(database)).toBe(8);
+      expect(readSchemaVersion(database)).toBe(9);
       for (const table of [
         "workspaces",
         "printers",
@@ -143,7 +143,7 @@ describe("SQLite PrinterKnowledgeIdentity schema", () => {
     const database = openConfiguredSqliteDatabase(":memory:");
     try {
       migrate(database);
-      expect(readSchemaVersion(database)).toBe(8);
+      expect(readSchemaVersion(database)).toBe(9);
       expect(database.prepare("PRAGMA table_info(printer_knowledge_identities)").all()).toEqual([
         expect.objectContaining({ name: "id", type: "TEXT", notnull: 1, pk: 1 }),
         expect.objectContaining({ name: "printer_id", type: "TEXT", notnull: 1, pk: 0 }),
@@ -398,7 +398,7 @@ describe("SQLite PrinterKnowledgeIdentity schema", () => {
       try {
         migrate(second);
         migrate(second);
-        expect(readSchemaVersion(second)).toBe(8);
+        expect(readSchemaVersion(second)).toBe(9);
         expect(second.prepare("SELECT id FROM printer_knowledge_identities").all()).toEqual([
           { id: "identity-a" },
         ]);
@@ -414,12 +414,12 @@ describe("SQLite PrinterKnowledgeIdentity schema", () => {
     expect(existsSync(directory)).toBe(false);
   });
 
-  it("retains unsupported newer-schema rejection at version 9", () => {
+  it("retains unsupported newer-schema rejection at version 10", () => {
     const database = openConfiguredSqliteDatabase(":memory:");
-    database.exec("PRAGMA user_version = 9");
+    database.exec("PRAGMA user_version = 10");
     try {
       expect(() => migrate(database)).toThrow(UnsupportedSchemaVersionError);
-      expect(readSchemaVersion(database)).toBe(9);
+      expect(readSchemaVersion(database)).toBe(10);
     } finally {
       database.close();
     }

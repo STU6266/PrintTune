@@ -249,6 +249,7 @@ describe("FieldResolutionService", () => {
       targetType: "printer_state",
       valueType: "boolean",
       resolutionPolicy: { kind: "exact_match" },
+      transitionPolicy: "require_reconfirmation",
     });
     const service = new FieldResolutionService(
       await repositoryWith(

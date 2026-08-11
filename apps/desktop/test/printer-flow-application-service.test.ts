@@ -3,6 +3,7 @@ import {
   InMemoryPrinterCreationPersistence,
   InMemoryPrinterRepository,
   InMemoryPrinterStateRepository,
+  InMemoryPrinterStateSelectionPersistence,
   InMemoryWorkspaceRepository,
   openPrintTuneDatabase,
 } from "@printtune/storage";
@@ -22,9 +23,10 @@ describe("PrinterFlowApplicationService", () => {
   const workspaces = new InMemoryWorkspaceRepository();
   const printers = new InMemoryPrinterRepository();
   const states = new InMemoryPrinterStateRepository();
+  const stateSelection = new InMemoryPrinterStateSelectionPersistence(states);
   const session = new ActiveWorkspaceSession(workspaces);
   const creation = new PrinterApplicationService(
-    new InMemoryPrinterCreationPersistence(printers, states),
+    new InMemoryPrinterCreationPersistence(printers, states, stateSelection),
     {
       createPrinterId: () => "printer-new",
       createPrinterStateId: () => "state-new",
@@ -75,6 +77,9 @@ describe("PrinterFlowApplicationService", () => {
 
     expect(detail.printer).toMatchObject({ workspaceId: "workspace-b", name: "Neuer Drucker" });
     await expect(states.listByPrinterId(detail.printer.id)).resolves.toEqual([detail.initialState]);
+    await expect(stateSelection.getSelectedStateId(detail.printer.id)).resolves.toBe(
+      detail.initialState.id
+    );
   });
 
   it("rejects creation when no Workspace is active", async () => {
@@ -140,6 +145,9 @@ it("persists the Printer and initial state across a SQLite close and reopen", as
       ).resolves.toEqual([
         { id: "state-persisted", printerId: "printer-persisted", createdAt: TIMESTAMP },
       ]);
+      await expect(
+        second.createPrinterStateSelectionPersistence().getSelectedStateId("printer-persisted")
+      ).resolves.toBe("state-persisted");
     } finally {
       second.close();
     }

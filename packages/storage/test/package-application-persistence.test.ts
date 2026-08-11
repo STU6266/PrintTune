@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import type { FieldClaim, PackageApplication } from "@printtune/contracts";
-import { createFieldClaim, createPackageApplication } from "@printtune/core";
+import { createFieldClaim, createPackageApplication, createPrinterState } from "@printtune/core";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { DuplicateFieldClaimError } from "../src/field-claim-repository";
@@ -131,6 +131,29 @@ describe("InMemory PackageApplication apply-once lifecycle", () => {
 });
 
 describe("SQLite PackageApplication apply-once lifecycle", () => {
+  it("does not inherit a parent State's PackageApplications", async () => {
+    const database = openPrintTuneDatabase(":memory:");
+    database.migrate();
+    await seed(database);
+    await database.createPackageApplicationLifecyclePersistence().applyOnce(application(), []);
+    await database.createPrinterStateRepository().create(
+      createPrinterState({
+        id: "state-b",
+        printerId: "printer-a",
+        parentPrinterStateId: "state-a",
+        timestamp: "2026-08-11T10:00:00Z",
+      })
+    );
+
+    await expect(
+      database.createPackageApplicationRepository().listForPrinterState("state-b")
+    ).resolves.toEqual([]);
+    await expect(
+      database.createPackageApplicationRepository().listForPrinterState("state-a")
+    ).resolves.toHaveLength(1);
+    database.close();
+  });
+
   it("persists one atomic batch, exact membership, historical contracts, and restart reads", async () => {
     const directory = mkdtempSync(join(tmpdir(), "printtune-package-application-"));
     directories.push(directory);

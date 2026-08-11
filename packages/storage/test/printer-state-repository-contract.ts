@@ -3,6 +3,10 @@ import { createPrinterState } from "@printtune/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { DuplicatePrinterStateError } from "../src/printer-state-repository";
+import {
+  PrinterStateParentNotFoundError,
+  PrinterStateParentOwnershipError,
+} from "../src/printer-state-repository";
 import type { PrinterStateRepository } from "../src/printer-state-repository";
 
 const FIRST = "2026-08-08T10:00:00.000Z";
@@ -13,8 +17,18 @@ export interface PrinterStateRepositoryFixture {
   readonly close: () => void | Promise<void>;
 }
 
-function state(id: string, printerId = "printer-a", createdAt = FIRST): PrinterState {
-  return createPrinterState({ id, printerId, timestamp: createdAt });
+function state(
+  id: string,
+  printerId = "printer-a",
+  createdAt = FIRST,
+  parentPrinterStateId?: string
+): PrinterState {
+  return createPrinterState({
+    id,
+    printerId,
+    ...(parentPrinterStateId === undefined ? {} : { parentPrinterStateId }),
+    timestamp: createdAt,
+  });
 }
 
 export function describePrinterStateRepository(
@@ -36,6 +50,39 @@ export function describePrinterStateRepository(
       const value = state("state-a");
       await fixture.repository.create(value);
       await expect(fixture.repository.findById(value.id)).resolves.toEqual(value);
+    });
+
+    it("reconstructs exact same-Printer lineage and leaves the initial State parentless", async () => {
+      const initial = state("state-initial");
+      const child = state("state-child", "printer-a", SECOND, initial.id);
+      await fixture.repository.create(initial);
+      await fixture.repository.create(child);
+
+      await expect(fixture.repository.findById(initial.id)).resolves.toEqual(initial);
+      await expect(fixture.repository.findById(child.id)).resolves.toEqual(child);
+    });
+
+    it("does not permanently prohibit two stored children from sharing a parent", async () => {
+      const initial = state("state-parent");
+      const firstChild = state("state-child-a", "printer-a", SECOND, initial.id);
+      const secondChild = state("state-child-b", "printer-a", SECOND, initial.id);
+      await fixture.repository.create(initial);
+      await fixture.repository.create(firstChild);
+      await fixture.repository.create(secondChild);
+
+      await expect(fixture.repository.findById(firstChild.id)).resolves.toEqual(firstChild);
+      await expect(fixture.repository.findById(secondChild.id)).resolves.toEqual(secondChild);
+    });
+
+    it("rejects missing and cross-Printer parents without persisting the child", async () => {
+      await expect(
+        fixture.repository.create(state("missing-parent-child", "printer-a", SECOND, "missing"))
+      ).rejects.toBeInstanceOf(PrinterStateParentNotFoundError);
+      await fixture.repository.create(state("other-parent", "printer-b"));
+      await expect(
+        fixture.repository.create(state("cross-printer-child", "printer-a", SECOND, "other-parent"))
+      ).rejects.toBeInstanceOf(PrinterStateParentOwnershipError);
+      await expect(fixture.repository.findById("cross-printer-child")).resolves.toBeUndefined();
     });
 
     it("lists only one Printer's states by createdAt then ID", async () => {

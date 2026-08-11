@@ -7,6 +7,7 @@ import {
   InMemoryPrinterCreationPersistence,
   InMemoryPrinterRepository,
   InMemoryPrinterStateRepository,
+  InMemoryPrinterStateSelectionPersistence,
   InMemoryWorkspaceRepository,
   openPrintTuneDatabase,
 } from "@printtune/storage";
@@ -32,13 +33,14 @@ async function harness(timestamps: readonly string[] = [EARLY]) {
   const workspaces = new InMemoryWorkspaceRepository();
   const printers = new InMemoryPrinterRepository();
   const states = new InMemoryPrinterStateRepository();
+  const selection = new InMemoryPrinterStateSelectionPersistence(states);
   const claims = new InMemoryFieldClaimRepository();
   await workspaces.save({ id: "workspace-a", name: "A", createdAt: EARLY, updatedAt: EARLY });
   await workspaces.save({ id: "workspace-b", name: "B", createdAt: EARLY, updatedAt: EARLY });
   const session = new ActiveWorkspaceSession(workspaces);
   await session.setActiveWorkspace("workspace-a");
   const creation = new PrinterApplicationService(
-    new InMemoryPrinterCreationPersistence(printers, states),
+    new InMemoryPrinterCreationPersistence(printers, states, selection),
     {
       createPrinterId: () => "printer-a",
       createPrinterStateId: () => "state-a",

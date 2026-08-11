@@ -33,6 +33,7 @@ export type {
 export type {
   FieldDefinition,
   FieldDefinitionTargetType,
+  FieldTransitionPolicy,
   FieldDefinitionValueType,
 } from "./field-definition.js";
 export type {

@@ -3,6 +3,7 @@ import type { PrinterState } from "@printtune/contracts";
 export interface CreatePrinterStateInput {
   readonly id: string;
   readonly printerId: string;
+  readonly parentPrinterStateId?: string;
   readonly timestamp: string;
 }
 
@@ -27,6 +28,14 @@ export class InvalidPrinterStateTimestampError extends Error {
 
   constructor() {
     super("PrinterState timestamp must be an ISO-8601 UTC string");
+  }
+}
+
+export class InvalidPrinterStateParentIdError extends Error {
+  override readonly name = "InvalidPrinterStateParentIdError";
+
+  constructor() {
+    super("PrinterState parent ID must be a different non-empty trimmed string");
   }
 }
 
@@ -77,9 +86,22 @@ function validateTimestamp(timestamp: string): string {
 }
 
 export function createPrinterState(input: CreatePrinterStateInput): PrinterState {
+  const id = validateId(input.id);
+  const parentPrinterStateId = input.parentPrinterStateId;
+  if (
+    parentPrinterStateId !== undefined &&
+    (typeof parentPrinterStateId !== "string" ||
+      parentPrinterStateId.length === 0 ||
+      parentPrinterStateId.trim() !== parentPrinterStateId ||
+      parentPrinterStateId === id)
+  ) {
+    throw new InvalidPrinterStateParentIdError();
+  }
+
   return Object.freeze({
-    id: validateId(input.id),
+    id,
     printerId: validatePrinterId(input.printerId),
+    ...(parentPrinterStateId === undefined ? {} : { parentPrinterStateId }),
     createdAt: validateTimestamp(input.timestamp),
   });
 }

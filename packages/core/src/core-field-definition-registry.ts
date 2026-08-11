@@ -52,12 +52,14 @@ const CORE_FIELD_DEFINITION_INPUTS = [
     valueType: "number",
     unit: "mm",
     resolutionPolicy: { kind: "installed_hardware_confirmation" },
+    transitionPolicy: "component_dependent",
   },
   {
     fieldPath: "printer.extruder.type",
     targetType: "printer_state",
     valueType: "string",
     resolutionPolicy: { kind: "installed_hardware_confirmation" },
+    transitionPolicy: "component_dependent",
   },
   {
     fieldPath: "printer.hotend.max-temperature",
@@ -65,6 +67,7 @@ const CORE_FIELD_DEFINITION_INPUTS = [
     valueType: "number",
     unit: "degC",
     resolutionPolicy: { kind: "safety_upper_bound" },
+    transitionPolicy: "require_reconfirmation",
   },
   {
     fieldPath: "printer.bed.max-temperature",
@@ -72,12 +75,14 @@ const CORE_FIELD_DEFINITION_INPUTS = [
     valueType: "number",
     unit: "degC",
     resolutionPolicy: { kind: "safety_upper_bound" },
+    transitionPolicy: "require_reconfirmation",
   },
   {
     fieldPath: "firmware.type",
     targetType: "printer_state",
     valueType: "string",
     resolutionPolicy: { kind: "exact_match" },
+    transitionPolicy: "configuration_dependent",
   },
   {
     fieldPath: "firmware.motion.max-velocity",
@@ -85,6 +90,7 @@ const CORE_FIELD_DEFINITION_INPUTS = [
     valueType: "number",
     unit: "mm/s",
     resolutionPolicy: { kind: "exact_match" },
+    transitionPolicy: "require_reconfirmation",
   },
   {
     fieldPath: "firmware.motion.max-acceleration",
@@ -92,6 +98,7 @@ const CORE_FIELD_DEFINITION_INPUTS = [
     valueType: "number",
     unit: "mm/s2",
     resolutionPolicy: { kind: "exact_match" },
+    transitionPolicy: "require_reconfirmation",
   },
   {
     fieldPath: "slicer.retraction.distance",
@@ -99,6 +106,7 @@ const CORE_FIELD_DEFINITION_INPUTS = [
     valueType: "number",
     unit: "mm",
     resolutionPolicy: { kind: "exact_match" },
+    transitionPolicy: "require_reconfirmation",
   },
   {
     fieldPath: "slicer.retraction.speed",
@@ -106,6 +114,7 @@ const CORE_FIELD_DEFINITION_INPUTS = [
     valueType: "number",
     unit: "mm/s",
     resolutionPolicy: { kind: "exact_match" },
+    transitionPolicy: "require_reconfirmation",
   },
   {
     fieldPath: "slicer.layer-height",
@@ -113,6 +122,7 @@ const CORE_FIELD_DEFINITION_INPUTS = [
     valueType: "number",
     unit: "mm",
     resolutionPolicy: { kind: "exact_match" },
+    transitionPolicy: "require_reconfirmation",
   },
   {
     fieldPath: "component.probe.offset.x",
@@ -120,6 +130,7 @@ const CORE_FIELD_DEFINITION_INPUTS = [
     valueType: "number",
     unit: "mm",
     resolutionPolicy: { kind: "exact_match" },
+    transitionPolicy: "require_reconfirmation",
   },
 ] as const satisfies readonly CreateFieldDefinitionInput[];
 

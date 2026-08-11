@@ -150,7 +150,7 @@ describe("SQLite FieldClaim schema", () => {
   it("creates the exact STRICT FieldClaim table in the current schema", () => {
     const database = openMigratedDatabase();
     try {
-      expect(readSchemaVersion(database)).toBe(8);
+      expect(readSchemaVersion(database)).toBe(9);
       expect(database.prepare("PRAGMA table_info(field_claims)").all()).toEqual([
         expect.objectContaining({ name: "id", type: "TEXT", notnull: 1, pk: 1 }),
         expect.objectContaining({ name: "printer_state_id", type: "TEXT", notnull: 0, pk: 0 }),
@@ -262,7 +262,7 @@ describe("SQLite FieldClaim schema", () => {
 
       runSqliteMigrations(database, PRINTTUNE_SQLITE_MIGRATIONS);
 
-      expect(readSchemaVersion(database)).toBe(8);
+      expect(readSchemaVersion(database)).toBe(9);
       expect(
         database
           .prepare(
@@ -706,7 +706,7 @@ describe("SQLite FieldClaim schema", () => {
       try {
         runSqliteMigrations(second, PRINTTUNE_SQLITE_MIGRATIONS);
         runSqliteMigrations(second, PRINTTUNE_SQLITE_MIGRATIONS);
-        expect(readSchemaVersion(second)).toBe(8);
+        expect(readSchemaVersion(second)).toBe(9);
         expect(second.prepare("SELECT id FROM field_claims").all()).toEqual([{ id: "claim-a" }]);
       } finally {
         second.close();

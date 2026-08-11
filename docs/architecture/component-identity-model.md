@@ -120,7 +120,8 @@ new PrinterState and a new set of installation records:
 
 No existing ComponentInstallation is updated or deleted to describe a configuration change. The
 stable instance ID expresses continuity; installation record IDs express immutable observations in
-particular states.
+particular states. The future atomic snapshot/carry-forward lifecycle is defined in
+[`printer-state-lifecycle.md`](printer-state-lifecycle.md).
 
 ## Technical facts and claims
 

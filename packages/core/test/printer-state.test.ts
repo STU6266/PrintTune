@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   InvalidPrinterStateIdError,
+  InvalidPrinterStateParentIdError,
   InvalidPrinterStatePrinterIdError,
   InvalidPrinterStateTimestampError,
   createPrinterState,
@@ -20,6 +21,48 @@ describe("PrinterState", () => {
       printerId: PRINTER_ID,
       createdAt: CREATED_AT,
     });
+  });
+
+  it("creates an immutable child with the exact supplied parent", () => {
+    const state = createPrinterState({
+      id: "printer-state-002",
+      printerId: PRINTER_ID,
+      parentPrinterStateId: STATE_ID,
+      timestamp: CREATED_AT,
+    });
+
+    expect(state).toEqual({
+      id: "printer-state-002",
+      printerId: PRINTER_ID,
+      parentPrinterStateId: STATE_ID,
+      createdAt: CREATED_AT,
+    });
+    expect(Object.isFrozen(state)).toBe(true);
+  });
+
+  it.each(["", " ", " parent ", "printer-state-001"])(
+    "rejects an invalid parent State ID: %j",
+    (parentPrinterStateId) => {
+      expect(() =>
+        createPrinterState({
+          id: STATE_ID,
+          printerId: PRINTER_ID,
+          parentPrinterStateId,
+          timestamp: CREATED_AT,
+        })
+      ).toThrow(InvalidPrinterStateParentIdError);
+    }
+  );
+
+  it.each([null, 42, {}])("rejects a non-string parent representation: %j", (value) => {
+    expect(() =>
+      createPrinterState({
+        id: STATE_ID,
+        printerId: PRINTER_ID,
+        parentPrinterStateId: value as never,
+        timestamp: CREATED_AT,
+      })
+    ).toThrow(InvalidPrinterStateParentIdError);
   });
 
   it.each(["", " ", "\t\n"])("rejects an empty state ID: %j", (id) => {

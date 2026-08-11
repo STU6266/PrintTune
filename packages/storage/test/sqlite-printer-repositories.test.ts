@@ -150,6 +150,16 @@ describe("SQLite Printer repository persistence and integrity", () => {
     expect(() =>
       parsePrinterStateRow({ id: "state-a", printer_id: " ", created_at: TIMESTAMP })
     ).toThrow(PrinterStateDataIntegrityError);
+    expect(() =>
+      parsePrinterStateRow({
+        id: "state-a",
+        printer_id: "printer-a",
+        parent_printer_state_id: "state-parent",
+        lineage_printer_id: "printer-a",
+        parent_printer_id: null,
+        created_at: TIMESTAMP,
+      })
+    ).toThrow(PrinterStateDataIntegrityError);
   });
 
   it("detects malformed values read from SQLite", async () => {

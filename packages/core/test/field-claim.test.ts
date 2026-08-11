@@ -211,6 +211,17 @@ describe("createFieldClaim", () => {
       { sourceType: "test_result", sourceRef: { type: "test_run", id: "test-run-1" } },
     ],
     ["ai_unverified", { sourceType: "ai_unverified" }],
+    [
+      "state_transition",
+      {
+        sourceType: "state_transition",
+        sourceRef: {
+          type: "state_transition",
+          sourceClaimId: "claim-a",
+          transitionCommandId: "transition-a",
+        },
+      },
+    ],
   ];
 
   it.each(provenanceCases)("accepts %s provenance", (_sourceType, provenance) => {
@@ -224,6 +235,38 @@ describe("createFieldClaim", () => {
       sourceRef: { type: "knowledge_package", packageId: "base", packageVersion: "1.0.0" },
     });
     expect(claim.provenance.sourceRef).not.toHaveProperty("factId");
+  });
+
+  it("deep-freezes state-transition provenance and rejects malformed opaque IDs", () => {
+    const provenance: ClaimProvenance = {
+      sourceType: "state_transition",
+      sourceRef: {
+        type: "state_transition",
+        sourceClaimId: "claim-a",
+        transitionCommandId: "transition-a",
+      },
+    };
+    const result = createFieldClaim(validInput({ provenance }));
+    expect(result.provenance).toEqual(provenance);
+    expect(Object.isFrozen(result.provenance)).toBe(true);
+    expect(Object.isFrozen(result.provenance.sourceRef)).toBe(true);
+
+    for (const [sourceClaimId, transitionCommandId] of [
+      [" claim-a", "transition-a"],
+      ["claim-a", ""],
+      ["claim-a", "transition-a "],
+    ]) {
+      expect(() =>
+        createFieldClaim(
+          validInput({
+            provenance: {
+              sourceType: "state_transition",
+              sourceRef: { type: "state_transition", sourceClaimId, transitionCommandId },
+            },
+          })
+        )
+      ).toThrow(InvalidFieldClaimProvenanceError);
+    }
   });
 
   it("retains exact package fact provenance and opaque package versions", () => {
